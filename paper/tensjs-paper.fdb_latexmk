@@ -1,0 +1,18 @@
+# Fdb version 4
+["pdflatex"] 1684156086 "/Users/jack/Documents/GitHub/tensjs/paper/tensjs-paper.tex" "tensjs-paper.pdf" "tensjs-paper" 1684156087 0
+  "/Users/jack/Documents/GitHub/tensjs/paper/tensjs-paper.tex" 1684156086 67 793b48734188524b55a7cfc5cbb126c2 ""
+  "/usr/local/texlive/2022/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb" 1248133631 35752 024fb6c41858982481f6968b5fc26508 ""
+  "/usr/local/texlive/2022/texmf-dist/tex/latex/base/article.cls" 1667332637 20144 d5ecf0a5140c8d8d8b72cbe86e320eff ""
+  "/usr/local/texlive/2022/texmf-dist/tex/latex/base/size10.clo" 1667332637 8448 c33a4e1cb35cee9b33c2b21033b73e39 ""
+  "/usr/local/texlive/2022/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def" 1673989714 30429 213676d4c7327a21d91ddaed900e7b81 ""
+  "/usr/local/texlive/2022/texmf-dist/web2c/texmf.cnf" 1646502317 40171 cdab547de63d26590bebb3baff566530 ""
+  "/usr/local/texlive/2022/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1675306257 4623355 58034c3eb7ddf7eacc726a83d01e26d2 ""
+  "/usr/local/texlive/2022/texmf-var/web2c/pdftex/pdflatex.fmt" 1675306314 7877902 0bdf7d01344a02c376df3d65039cd6d7 ""
+  "/usr/local/texlive/2022/texmf.cnf" 1647878952 577 209b46be99c9075fd74d4c0369380e8c ""
+  "tensjs-paper.aux" 1684156087 32 3985256e7290058c681f74d7a3565a19 "pdflatex"
+  "tensjs-paper.tex" 1684156086 67 793b48734188524b55a7cfc5cbb126c2 ""
+  (generated)
+  "tensjs-paper.aux"
+  "tensjs-paper.log"
+  "tensjs-paper.pdf"
+  (rewritten before read)
