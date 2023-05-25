@@ -6,4 +6,5 @@ export declare class Tensor {
     static zeros(shape: number | number[]): Tensor;
     static ones(shape: number | number[]): Tensor;
     static normal(shape: number | number[], mean?: number, stddev?: number): Tensor;
+    cpu_plus(other: Tensor): Tensor;
 }

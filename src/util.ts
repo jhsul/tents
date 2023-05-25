@@ -52,6 +52,17 @@ export const gaussianSample = (mean = 0, stdev = 1) => {
  * Although, this is probably never really an issue with floats...
  * https://stackoverflow.com/a/72565782
  */
-export const mean = (arr: ArrayType) =>
+export const mean = (arr: ArrayType): number =>
   //@ts-expect-error - reduce is a valid method on all ArrayTypes, even if typescript doesn't think so
   arr.reduce((m, x, i) => m + (x - m) / (i + 1), 0);
+
+export const stddev = (arr: ArrayType) => {
+  const n = arr.length;
+
+  //@ts-expect-error
+  const mean = arr.reduce((a, b) => a + b) / n;
+  return Math.sqrt(
+    //@ts-expect-error
+    arr.map((x) => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / n
+  );
+};

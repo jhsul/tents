@@ -1,7 +1,8 @@
-import { findShape, gaussianSample } from "./util";
+import { arrEq, findShape, gaussianSample } from "./util";
 export class Tensor {
     shape;
     data;
+    // Constructors
     constructor(arr) {
         /*
         Parse the shape from the array, or throw an exception
@@ -54,6 +55,18 @@ export class Tensor {
         const t = new Tensor();
         t.shape = new Int32Array(shape);
         t.data = new Float32Array(shape.reduce((a, b) => a * b, 1)).map(() => gaussianSample(mean, stddev));
+        return t;
+    }
+    // CPU Operations
+    cpu_plus(other) {
+        if (!arrEq(this.shape, other.shape))
+            throw new Error("Shape mismatch");
+        const t = new Tensor();
+        t.shape = new Int32Array(this.shape);
+        t.data = new Float32Array(this.data.length);
+        for (let i = 0; i < this.data.length; i++) {
+            t.data[i] = this.data[i] + other.data[i];
+        }
         return t;
     }
 }
