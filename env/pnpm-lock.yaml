@@ -33,9 +33,15 @@ devDependencies:
   eslint-plugin-react-refresh:
     specifier: ^0.3.4
     version: 0.3.4(eslint@8.38.0)
+  export-to-csv:
+    specifier: ^0.2.1
+    version: 0.2.1
   sass:
     specifier: ^1.62.1
     version: 1.62.1
+  tqdm:
+    specifier: ^2.0.3
+    version: 2.0.3
   typescript:
     specifier: ^5.0.2
     version: 5.0.2
@@ -1138,6 +1144,10 @@ packages:
     engines: {node: '>=0.10.0'}
     dev: true
 
+  /export-to-csv@0.2.1:
+    resolution: {integrity: sha512-KTbrd3CAZ0cFceJEZr1e5uiMasabeCpXq1/5uvVxDl53o4jXJHnltasQoj2NkzrxD8hU9kdwjnMhoir/7nNx/A==}
+    dev: true
+
   /fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
     dev: true
@@ -1708,6 +1718,10 @@ packages:
     engines: {node: '>=8.0'}
     dependencies:
       is-number: 7.0.0
+    dev: true
+
+  /tqdm@2.0.3:
+    resolution: {integrity: sha512-Ju50G550gspkjd1AiJ/jFBHe2dii9s+KPntEsq0o73BqywqzNWPUM8/FD3zM1rOH7OGLoH7pGSGI90Ct+Yd/5Q==}
     dev: true
 
   /tslib@1.14.1:

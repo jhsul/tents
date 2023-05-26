@@ -1,29 +1,55 @@
 import type { FunctionComponent } from "react";
-import { useRef, useState, useEffect, useCallback } from "react";
-import { helloTensor } from "./scripts/hello";
+import { useState, useEffect, useCallback } from "react";
+import { ExportToCsv } from "export-to-csv";
+
+import { helloTensor } from "./benchmarks/hello";
+import { cpuForLoopAddition1D } from "./benchmarks/addition";
 
 import "./styles.scss";
 import { mean, stddev } from "../bin/util";
+import type { Benchmark } from "./main";
 
-const scripts = [helloTensor];
+const benchmarks: Benchmark[] = [cpuForLoopAddition1D];
+
+interface CSVDatum {
+  n: number;
+  time: number;
+  stddev: number;
+}
 
 const App: FunctionComponent = () => {
-  const selectRef = useRef<HTMLSelectElement | null>(null);
+  // const selectRef = useRef<HTMLSelectElement | null>(null);
+  const [benchIdx, setBenchIdx] = useState(0);
+  const [isRunning, setIsRunning] = useState(false);
+  const [shouldSave, setShouldSave] = useState(false);
 
-  const [K, setK] = useState(10);
-  const [C, setC] = useState(1);
+  const [K, setK] = useState(25);
+  const [C, setC] = useState(10);
 
   const [N, setN] = useState<number[]>([]);
 
   const runScript = useCallback(() => {
-    if (!selectRef.current) return;
+    setIsRunning(true);
+    const csvExporter = new ExportToCsv({
+      filename: `${benchmarks[benchIdx].name}-js`,
+      fieldSeparator: ",",
+      quoteStrings: '"',
+      decimalSeparator: ".",
+      showLabels: true,
+      showTitle: false,
+
+      useTextFile: false,
+      useBom: true,
+      useKeysAsHeaders: true,
+      // headers: ['Column 1', 'Column 2', etc...] <-- Won't work with useKeysAsHeaders present!
+    });
+
+    const csvData: CSVDatum[] = [];
 
     for (const n of N) {
       const times: number[] = [];
       for (let i = 0; i < C; i++) {
-        const start = Date.now();
-        scripts[parseInt(selectRef.current.value)](n);
-        const t = Date.now() - start;
+        const t = benchmarks[benchIdx](n);
 
         times.push(t);
       }
@@ -31,9 +57,13 @@ const App: FunctionComponent = () => {
       const mu = mean(times);
       const sigma = stddev(times);
 
-      console.log(mu, sigma);
+      csvData.push({ n, time: mu, stddev: sigma });
     }
-  }, [K, C, N]);
+    if (shouldSave) csvExporter.generateCsv(csvData);
+    else console.log(csvData);
+
+    setIsRunning(false);
+  }, [K, C, N, benchIdx, shouldSave]);
 
   useEffect(() => {
     const newN = new Array(K);
@@ -46,8 +76,11 @@ const App: FunctionComponent = () => {
 
   return (
     <div className="app">
-      <select ref={selectRef}>
-        {scripts.map((b, i) => (
+      <select
+        value={benchIdx}
+        onChange={(e) => setBenchIdx(parseInt(e.currentTarget.value))}
+      >
+        {benchmarks.map((b, i) => (
           <option key={i} value={i}>
             {b.name}
           </option>
@@ -59,10 +92,11 @@ const App: FunctionComponent = () => {
         <input
           type="range"
           min="1"
-          max="20"
+          max="30"
           step="1"
           onChange={(e) => setK(parseInt(e.currentTarget.value))}
           value={K}
+          disabled={isRunning}
         ></input>
         <div>{K}</div>
       </div>
@@ -76,6 +110,7 @@ const App: FunctionComponent = () => {
           step="1"
           onChange={(e) => setC(parseInt(e.currentTarget.value))}
           value={C}
+          disabled={isRunning}
         ></input>
         <div>{C}</div>
       </div>
@@ -84,7 +119,19 @@ const App: FunctionComponent = () => {
         Take {C} samples each across inputs {JSON.stringify(N)}
       </div>
 
-      <button onClick={runScript}>Start</button>
+      <div className="hbox">
+        <input
+          type="checkbox"
+          value={shouldSave.toString()}
+          onChange={() => setShouldSave((b) => !b)}
+          disabled={isRunning}
+        />
+        <div>Save data to CSV</div>
+      </div>
+
+      <button onClick={runScript} disabled={isRunning}>
+        Start
+      </button>
     </div>
   );
 };
