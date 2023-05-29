@@ -1,6 +1,23 @@
 .app {
   display: flex;
+  justify-content: center;
+}
+
+.running {
+  background-color: lightgrey;
+  pointer-events: none;
+}
+
+.form {
+  display: flex;
   flex-direction: column;
+
+  border: 1px solid black;
+  border-radius: 5px;
+
+  max-width: 500pt;
+
+  padding: 10pt;
 }
 
 .hbox {

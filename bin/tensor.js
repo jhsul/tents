@@ -45,7 +45,19 @@ export class Tensor {
         t.data = new Float32Array(shape.reduce((a, b) => a * b, 1)).fill(1.0);
         return t;
     }
-    static normal(shape, mean = 0, stddev = 1) {
+    static rand(shape) {
+        if (typeof shape === "number") {
+            shape = [shape];
+        }
+        else if (!Array.isArray(shape)) {
+            throw new Error("Invalid shape");
+        }
+        const t = new Tensor();
+        t.shape = new Int32Array(shape);
+        t.data = new Float32Array(shape.reduce((a, b) => a * b, 1)).map(() => Math.random());
+        return t;
+    }
+    static randn(shape, mean = 0, stddev = 1) {
         if (typeof shape === "number") {
             shape = [shape];
         }
@@ -58,14 +70,14 @@ export class Tensor {
         return t;
     }
     // CPU Operations
-    cpu_plus(other) {
-        if (!arrEq(this.shape, other.shape))
+    static _cpu_forloop_plus(a, b) {
+        if (!arrEq(a.shape, b.shape))
             throw new Error("Shape mismatch");
         const t = new Tensor();
-        t.shape = new Int32Array(this.shape);
-        t.data = new Float32Array(this.data.length);
-        for (let i = 0; i < this.data.length; i++) {
-            t.data[i] = this.data[i] + other.data[i];
+        t.shape = new Int32Array(a.shape);
+        t.data = new Float32Array(a.data.length);
+        for (let i = 0; i < a.data.length; i++) {
+            t.data[i] = a.data[i] + b.data[i];
         }
         return t;
     }

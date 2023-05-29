@@ -5,7 +5,7 @@ import time
 device = th.device("mps")
 
 
-def cpu_for_loop_addition1d(n: int) -> float:
+def vecadd_forloop_cpu(n: int) -> float:
     a = np.random.rand(n)
     b = np.random.rand(n)
 
@@ -19,7 +19,7 @@ def cpu_for_loop_addition1d(n: int) -> float:
     return time.time() - start
 
 
-def cpu_numpy_addition1d(n: int) -> float:
+def vecadd_numpy_cpu(n: int) -> float:
     a = np.random.rand(n)
     b = np.random.rand(n)
 
@@ -30,7 +30,7 @@ def cpu_numpy_addition1d(n: int) -> float:
     return time.time() - start
 
 
-def cpu_torch_addition1d(n: int) -> float:
+def vecadd_torch_cpu(n: int) -> float:
     a = th.rand(n)
     b = th.rand(n)
 
@@ -41,7 +41,7 @@ def cpu_torch_addition1d(n: int) -> float:
     return time.time() - start
 
 
-def gpu_torch_addition1d(n: int) -> float:
+def vecadd_torch_gpu(n: int) -> float:
     # start = time.time()
     a = th.rand(n)
     b = th.rand(n)

@@ -56,11 +56,24 @@ export class Tensor {
     return t;
   }
 
-  static normal(
-    shape: number | number[],
-    mean: number = 0,
-    stddev: number = 1
-  ) {
+  static rand(shape: number | number[]): Tensor {
+    if (typeof shape === "number") {
+      shape = [shape];
+    } else if (!Array.isArray(shape)) {
+      throw new Error("Invalid shape");
+    }
+
+    const t = new Tensor();
+
+    t.shape = new Int32Array(shape);
+    t.data = new Float32Array(shape.reduce((a, b) => a * b, 1)).map(() =>
+      Math.random()
+    );
+
+    return t;
+  }
+
+  static randn(shape: number | number[], mean: number = 0, stddev: number = 1) {
     if (typeof shape === "number") {
       shape = [shape];
     } else if (!Array.isArray(shape)) {
@@ -78,18 +91,33 @@ export class Tensor {
 
   // CPU Operations
 
-  cpu_plus(other: Tensor): Tensor {
-    if (!arrEq(this.shape, other.shape)) throw new Error("Shape mismatch");
+  static _cpu_forloop_plus(a: Tensor, b: Tensor): Tensor {
+    if (!arrEq(a.shape, b.shape)) throw new Error("Shape mismatch");
 
     const t = new Tensor();
 
-    t.shape = new Int32Array(this.shape);
-    t.data = new Float32Array(this.data.length);
+    t.shape = new Int32Array(a.shape);
+    t.data = new Float32Array(a.data.length);
 
-    for (let i = 0; i < this.data.length; i++) {
-      t.data[i] = this.data[i] + other.data[i];
+    for (let i = 0; i < a.data.length; i++) {
+      t.data[i] = a.data[i] + b.data[i];
     }
 
     return t;
   }
+
+  // cpu_plus(other: Tensor): Tensor {
+  // if (!arrEq(this.shape, other.shape)) throw new Error("Shape mismatch");
+
+  // const t = new Tensor();
+
+  // t.shape = new Int32Array(this.shape);
+  // t.data = new Float32Array(this.data.length);
+
+  // for (let i = 0; i < this.data.length; i++) {
+  //   t.data[i] = this.data[i] + other.data[i];
+  // }
+
+  // return t;
+  // }
 }

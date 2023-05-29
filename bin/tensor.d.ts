@@ -5,6 +5,7 @@ export declare class Tensor {
     constructor(arr?: NestedArray);
     static zeros(shape: number | number[]): Tensor;
     static ones(shape: number | number[]): Tensor;
-    static normal(shape: number | number[], mean?: number, stddev?: number): Tensor;
-    cpu_plus(other: Tensor): Tensor;
+    static rand(shape: number | number[]): Tensor;
+    static randn(shape: number | number[], mean?: number, stddev?: number): Tensor;
+    static _cpu_forloop_plus(a: Tensor, b: Tensor): Tensor;
 }
