@@ -4,27 +4,41 @@ export class Tensor {
   shape: Int32Array;
   data: Float32Array;
 
+  isGpu: boolean;
+  requiresGrad: boolean;
+
+  grad?: Tensor;
+
   // Constructors
 
-  constructor(arr?: NestedArray) {
+  constructor(arr?: NestedArray, requiresGrad: boolean = false) {
     /*
     Parse the shape from the array, or throw an exception
     */
+
+    this.isGpu = false;
+    this.requiresGrad = requiresGrad;
 
     // An empty tensor
     if (!arr) {
       this.shape = new Int32Array();
       this.data = new Float32Array();
-      return;
+    }
+    // Tensor is given initial values
+    else {
+      const shape = findShape(arr);
+      if (!shape) throw new Error("Invalid shape");
+
+      this.shape = new Int32Array(shape);
+
+      //@ts-expect-error
+      this.data = new Float32Array(arr.flat(shape.length));
     }
 
-    const shape = findShape(arr);
-    if (!shape) throw new Error("Invalid shape");
-
-    this.shape = new Int32Array(shape);
-
-    //@ts-expect-error
-    this.data = new Float32Array(arr.flat(shape.length));
+    // Initialize gradient if necessary
+    if (requiresGrad) {
+      this.grad = Tensor.zeros(Array.from(this.shape));
+    }
   }
 
   static zeros(shape: number | number[]): Tensor {
