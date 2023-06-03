@@ -1,6 +1,6 @@
 export interface NestedArray extends Array<number | NestedArray> {
 }
-type ArrayType = Float32Array | Int32Array | number[];
+export type ArrayType = Float32Array | Int32Array | number[];
 /**
  * Shallow equality check for two array types
  * Note: a number[] and a Float32Array can return true if the elements are the same
@@ -23,4 +23,3 @@ export declare const gaussianSample: (mean?: number, stdev?: number) => number;
  */
 export declare const mean: (arr: ArrayType) => number;
 export declare const stddev: (arr: ArrayType) => number;
-export {};

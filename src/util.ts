@@ -1,6 +1,6 @@
 export interface NestedArray extends Array<number | NestedArray> {}
 
-type ArrayType = Float32Array | Int32Array | number[];
+export type ArrayType = Float32Array | Int32Array | number[];
 
 /**
  * Shallow equality check for two array types

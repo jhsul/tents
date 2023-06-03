@@ -2,14 +2,17 @@ import type { FunctionComponent } from "react";
 import { useState, useEffect, useCallback } from "react";
 import { ExportToCsv } from "export-to-csv";
 
+import { tests } from "../bin/tests";
+
 import { helloTensor } from "./benchmarks/hello";
-import { vecaddForloopCpu } from "./benchmarks/addition";
+import { vecaddForloopCpu, vecaddWebGpu } from "./benchmarks/addition";
 
 import "./styles.scss";
 import { mean, stddev } from "../bin/util";
 import type { Benchmark } from "./main";
+import { Tensor } from "../bin";
 
-const benchmarks: Benchmark[] = [vecaddForloopCpu];
+const benchmarks: Benchmark[] = [vecaddForloopCpu, vecaddWebGpu];
 
 interface CSVDatum {
   n: number;
@@ -28,8 +31,10 @@ const App: FunctionComponent = () => {
 
   // const [N, setN] = useState<number[]>([]);
 
-  const runScript = useCallback(() => {
+  const runScript = useCallback(async () => {
     console.log("Beginning Benchmark!");
+
+    await Tensor.setupDevice();
     setIsRunning(true);
     const csvExporter = new ExportToCsv({
       filename: `${benchmarks[benchIdx].name}-js`,
@@ -51,7 +56,7 @@ const App: FunctionComponent = () => {
       const n = 1 << scale;
       const times: number[] = [];
       for (let i = 0; i < C; i++) {
-        const t = benchmarks[benchIdx](n);
+        const t = await benchmarks[benchIdx](n);
 
         times.push(t);
       }
@@ -66,6 +71,12 @@ const App: FunctionComponent = () => {
 
     setIsRunning(false);
   }, [K, C, benchIdx, shouldSave]);
+
+  const runTests = () => {
+    for (const test of tests) {
+      test();
+    }
+  };
 
   return (
     <div className="app">
@@ -132,7 +143,13 @@ const App: FunctionComponent = () => {
         </div>
 
         <button onClick={runScript} disabled={isRunning}>
-          Start
+          Start Benchmark
+        </button>
+
+        <br />
+
+        <button onClick={runTests} disabled={isRunning}>
+          Run Unit Tests
         </button>
       </div>
     </div>

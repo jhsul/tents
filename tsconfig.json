@@ -6,7 +6,9 @@
     "esModuleInterop": true,
     "declaration": true,
     "outDir": "./bin",
-    "strict": true
+    "strict": true,
+    "lib": ["dom", "esnext"],
+    "typeRoots": ["./node_modules/@webgpu/types"]
   },
   "include": ["src"],
   "exclude": ["node_modules"]
