@@ -1,5 +1,6 @@
 node_modules/
 
 py/__pycache__
+py/analysis.ipynb
 
 tmp/
