@@ -14,7 +14,22 @@ export declare class Tensor {
     static ones(shape: number | number[]): Tensor;
     static rand(shape: number | number[]): Tensor;
     static randn(shape: number | number[], mean?: number, stddev?: number): Tensor;
+    get(idx: number | number[]): number;
+    set(idx: number | number[], val: number): void;
     gpu(): this;
-    static _cpu_forloop_plus(a: Tensor, b: Tensor): Tensor;
-    static _gpu_plus(a: Tensor, b: Tensor): Promise<Tensor>;
+    static eq(a: Tensor, b: Tensor): boolean;
+    static neg(a: Tensor): Tensor;
+    static plus(a: Tensor, b: Tensor): Promise<Tensor>;
+    static _cpuPlus(a: Tensor, b: Tensor): Tensor;
+    static _gpuPlus(a: Tensor, b: Tensor): Promise<Tensor>;
+    /**
+     * Expects two matrices a, b with shapes [n, m], [m, p]
+     * https://en.wikipedia.org/wiki/Matrix_multiplication_algorithm#Iterative_algorithm
+     */
+    static _cpuMatmul(a: Tensor, b: Tensor): Tensor;
+    /**
+     * Expects two tensors a, b with shapes [s, n, m], [s, m, p]
+     * Performs a matrix multiplication on s pairs of matrices a[i,:,:], b[i,:,:]
+     */
+    static _cpuBatchMatmul(a: Tensor, b: Tensor): Tensor;
 }

@@ -1,1 +1,1 @@
-export declare const testShapes: () => void;
+export declare const testShapes: () => Promise<void>;

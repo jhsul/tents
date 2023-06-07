@@ -91,6 +91,48 @@ export class Tensor {
         t.data = new Float32Array(shape.reduce((a, b) => a * b, 1)).map(() => gaussianSample(mean, stddev));
         return t;
     }
+    get(idx) {
+        if (typeof idx === "number") {
+            if (this.shape.length > 1)
+                throw new Error("Invalid index for multidimensional tensor");
+            return this.data[idx];
+        }
+        else if (Array.isArray(idx)) {
+            if (idx.length !== this.shape.length)
+                throw new Error("Invalid index");
+            let offset = 0;
+            /**
+             * O(n) where n is the length of the _shape_
+             * So, this is effectively O(1) unless doing something crazy
+             */
+            for (let i = 0; i < idx.length; i++) {
+                offset += idx[i] * this.shape[i];
+            }
+            return this.data[offset];
+        }
+        else
+            throw new Error("Invalid index");
+    }
+    set(idx, val) {
+        if (typeof idx === "number") {
+            if (this.shape.length > 1)
+                throw new Error("Invalid index for multidimensional tensor");
+            this.data[idx] = val;
+            return;
+        }
+        else if (Array.isArray(idx)) {
+            if (idx.length !== this.shape.length)
+                throw new Error("Invalid index");
+            let offset = 0;
+            for (let i = 0; i < idx.length; i++) {
+                offset += idx[i] * this.shape[i];
+            }
+            this.data[offset] = val;
+            return;
+        }
+        else
+            throw new Error("Invalid index");
+    }
     gpu() {
         if (!Tensor._device)
             throw new Error("Can't map tensor to GPU without device");
@@ -107,10 +149,36 @@ export class Tensor {
         this.dataBuffer = dataBuffer;
         return this;
     }
-    // CPU Operations
-    static _cpu_forloop_plus(a, b) {
+    // Basic operations
+    static eq(a, b) {
+        return arrEq(a.shape, b.shape) && arrEq(a.data, b.data);
+    }
+    static neg(a) {
+        if (a.isGpu)
+            throw new Error("Negation is a CPU operation. Run it before calling gpu()");
+        const t = new Tensor();
+        t.shape = new Int32Array(a.shape);
+        t.data = new Float32Array(a.data.length);
+        for (let i = 0; i < a.data.length; i++) {
+            t.data[i] = -a.data[i];
+        }
+        return t;
+    }
+    static async plus(a, b) {
         if (!arrEq(a.shape, b.shape))
             throw new Error("Shape mismatch");
+        if (a.isGpu && b.isGpu) {
+            return await Tensor._gpuPlus(a, b);
+        }
+        if (!a.isGpu && !b.isGpu) {
+            return Tensor._cpuPlus(a, b);
+        }
+        else
+            throw new Error("Tensor device mismatch");
+    }
+    // static async minus(a: Tensor, b: Tensor): Promise
+    // CPU Operations
+    static _cpuPlus(a, b) {
         const t = new Tensor();
         t.shape = new Int32Array(a.shape);
         t.data = new Float32Array(a.data.length);
@@ -119,19 +187,17 @@ export class Tensor {
         }
         return t;
     }
-    static async _gpu_plus(a, b) {
-        if (!arrEq(a.shape, b.shape))
-            throw new Error("Shape mismatch");
-        if (a.isGpu !== b.isGpu)
-            throw new Error("Tensor device mismatch");
-        if (!a.isGpu)
-            return Tensor._cpu_forloop_plus(a, b);
+    static async _gpuPlus(a, b) {
+        // if (!arrEq(a.shape, b.shape)) throw new Error("Shape mismatch");
+        // if (a.isGpu !== b.isGpu) throw new Error("Tensor device mismatch");
+        // if (!a.isGpu) return Tensor._cpu_forloop_plus(a, b);
+        const workgroupSize = 256;
         const shaderCode = `
 
     struct Tensor {
       data: array<f32, ${a.data.length}>,
     };
-    
+
 
     @group(0) @binding(0) var<storage, read> a: Tensor;
     @group(0) @binding(1) var<storage, read> b: Tensor;
@@ -139,7 +205,7 @@ export class Tensor {
     @group(0) @binding(2) var<storage, read_write> result: Tensor;
 
         
-    @compute @workgroup_size(64)
+    @compute @workgroup_size(${workgroupSize})
     fn main(@builtin(global_invocation_id) id: vec3<u32>) {
       let i = id.x;
       result.data[i] = a.data[i] + b.data[i];
@@ -209,7 +275,7 @@ export class Tensor {
         passEncoder.setPipeline(pipeline);
         passEncoder.setBindGroup(0, bindGroup);
         // Dispatch the compute job
-        passEncoder.dispatchWorkgroups(Math.ceil(a.data.length / 64));
+        passEncoder.dispatchWorkgroups(Math.ceil(a.data.length / workgroupSize));
         // End the compute pass
         passEncoder.end();
         // Copy the result buffer to the readback buffer
@@ -233,5 +299,52 @@ export class Tensor {
         a.dataBuffer = undefined;
         b.dataBuffer = undefined;
         return result;
+    }
+    /**
+     * Expects two matrices a, b with shapes [n, m], [m, p]
+     * https://en.wikipedia.org/wiki/Matrix_multiplication_algorithm#Iterative_algorithm
+     */
+    static _cpuMatmul(a, b) {
+        const c = new Tensor();
+        const n = a.shape[0];
+        const m = a.shape[1];
+        const p = b.shape[1];
+        c.shape = new Int32Array([n, p]);
+        c.data = new Float32Array(n * p);
+        for (let i = 0; i < n; i++) {
+            for (let j = 0; j < p; j++) {
+                let sum = 0;
+                for (let k = 0; k < m; k++) {
+                    sum += a.get([i, k]) * b.get([k, j]);
+                }
+                c.set([i, j], sum);
+            }
+        }
+        return c;
+    }
+    /**
+     * Expects two tensors a, b with shapes [s, n, m], [s, m, p]
+     * Performs a matrix multiplication on s pairs of matrices a[i,:,:], b[i,:,:]
+     */
+    static _cpuBatchMatmul(a, b) {
+        const s = a.shape[0];
+        const c = new Tensor();
+        const n = a.shape[1];
+        const m = a.shape[2];
+        const p = b.shape[2];
+        c.shape = new Int32Array([s, n, p]);
+        c.data = new Float32Array(s * n * p);
+        for (let r = 0; r < s; r++) {
+            for (let i = 0; i < n; i++) {
+                for (let j = 0; j < p; j++) {
+                    let sum = 0;
+                    for (let k = 0; k < m; k++) {
+                        sum += a.get([i, k]) * b.get([k, j]);
+                    }
+                    c.set([r, i, j], sum);
+                }
+            }
+        }
+        return c;
     }
 }

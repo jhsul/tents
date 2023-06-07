@@ -1,6 +1,6 @@
 import { arrEq } from "..";
 import { assertFalse, assertTrue, test } from "./testing";
-export const testUtils = () => {
+export const testUtils = async () => {
     test("arrEq function", () => {
         assertTrue(arrEq([1, 2, 3], [1, 2, 3]));
     });

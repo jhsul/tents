@@ -1,7 +1,7 @@
 import { Tensor } from "..";
 import { assertArrayEquals, test } from "./testing";
 
-export const testConstructors = () => {
+export const testConstructors = async () => {
   test("zeros constructor - 1D vector", () => {
     assertArrayEquals(Tensor.zeros(3).data, [0, 0, 0]);
   });

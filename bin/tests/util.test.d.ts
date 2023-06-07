@@ -1,1 +1,1 @@
-export declare const testUtils: () => void;
+export declare const testUtils: () => Promise<void>;

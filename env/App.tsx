@@ -72,10 +72,17 @@ const App: FunctionComponent = () => {
     setIsRunning(false);
   }, [K, C, benchIdx, shouldSave]);
 
-  const runTests = () => {
-    for (const test of tests) {
-      test();
-    }
+  const runTests = async () => {
+    const start = window.performance.now();
+    console.log("Running unit tests!");
+
+    await Promise.all(tests.map((t) => t()));
+
+    console.log(
+      `Unit tests complete in ${(window.performance.now() - start).toFixed(
+        2
+      )}ms!`
+    );
   };
 
   return (

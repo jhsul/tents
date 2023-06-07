@@ -14,15 +14,16 @@ import { arrEq, type ArrayType } from "../util";
  * @param {string} desc The description of the test being run.
  * @param {function} fn The unit testing function, which should include a call to assert().
  */
-export function test(desc: string, fn: () => void) {
+export const test = async (desc: string, fn: () => Promise<void> | void) => {
   try {
-    fn();
+    // Run the test aysnchronously. If it's a synchronous function, this will still work
+    await fn();
     console.log("%c%s", "color: #00AA00", "\u2713 " + desc);
   } catch (error) {
     console.log("%c%s", "color: #AA0000", "\u2718 " + desc);
     console.error(error);
   }
-}
+};
 
 /**
  * Asserts a given condition is true.

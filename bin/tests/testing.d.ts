@@ -12,7 +12,7 @@ import { type ArrayType } from "../util";
  * @param {string} desc The description of the test being run.
  * @param {function} fn The unit testing function, which should include a call to assert().
  */
-export declare function test(desc: string, fn: () => void): void;
+export declare const test: (desc: string, fn: () => Promise<void> | void) => Promise<void>;
 /**
  * Asserts a given condition is true.
  * @param {boolean} condition The condition to test.
