@@ -125,15 +125,16 @@ export class Tensor {
       return this.data[idx];
     } else if (Array.isArray(idx)) {
       if (idx.length !== this.shape.length) throw new Error("Invalid index");
-      let offset = 0;
 
-      /**
-       * O(n) where n is the length of the _shape_
-       * So, this is effectively O(1) unless doing something crazy
-       */
+      let offset = 0;
       for (let i = 0; i < idx.length; i++) {
-        offset += idx[i] * this.shape[i];
+        let stride = 1;
+        for (let j = i + 1; j < this.shape.length; j++) {
+          stride *= this.shape[j];
+        }
+        offset += idx[i] * stride;
       }
+
       return this.data[offset];
     } else throw new Error("Invalid index");
   }
@@ -148,11 +149,16 @@ export class Tensor {
       return old;
     } else if (Array.isArray(idx)) {
       if (idx.length !== this.shape.length) throw new Error("Invalid index");
-      let offset = 0;
 
+      let offset = 0;
       for (let i = 0; i < idx.length; i++) {
-        offset += idx[i] * this.shape[i];
+        let stride = 1;
+        for (let j = i + 1; j < this.shape.length; j++) {
+          stride *= this.shape[j];
+        }
+        offset += idx[i] * stride;
       }
+
       const old = this.data[offset];
       this.data[offset] = val;
       return old;
@@ -240,7 +246,7 @@ export class Tensor {
 
     // if (!a.isGpu) return Tensor._cpu_forloop_plus(a, b);
 
-    const workgroupSize = 256;
+    const workgroupSize = 128;
 
     const shaderCode = `
 
@@ -398,12 +404,156 @@ export class Tensor {
       for (let j = 0; j < p; j++) {
         let sum = 0;
         for (let k = 0; k < m; k++) {
-          sum += a.get([i, k]) * b.get([k, j]);
+          sum += a.data[i * m + k] * b.data[k * p + j];
         }
-        c.set([i, j], sum);
+        c.data[i * p + j] = sum;
       }
     }
     return c;
+  }
+
+  /**
+   * Expects two matrices a, b with shapes [n, m], [m, p]
+   */
+  static async _gpuMatmul(a: Tensor, b: Tensor): Promise<Tensor> {
+    const n = a.shape[0];
+    const m = a.shape[1];
+    const p = b.shape[1];
+
+    const result = new Tensor();
+    result.shape = new Int32Array([n, p]);
+    result.data = new Float32Array(n * p);
+
+    const workgroupSize = 256;
+
+    const shaderCode = `
+    struct Tensor {
+        data: array<f32, ${n * p}>,
+      };
+
+      @group(0) @binding(0) var<storage, read> A: Tensor;
+      @group(0) @binding(1) var<storage, read> B: Tensor;
+
+      @group(0) @binding(2) var<storage, read_write> C: Tensor;
+
+      @compute @workgroup_size(${workgroupSize})
+      fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+        let i = id.x;
+        let j = id.y;
+
+        var sum: f32 = 0.0;
+        for (var k = 0u; k < ${m}; k = k + 1u) {
+          sum = sum + A.data[i * ${m} + k] * B.data[k * ${p} + j];
+        }
+
+        C.data[i * ${p} + j] = sum;
+      }
+    `;
+
+    const shaderModule = Tensor._device.createShaderModule({
+      code: shaderCode,
+    });
+
+    const resultBuffer = Tensor._device.createBuffer({
+      size: result.data.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
+    });
+
+    const readbackBuffer = Tensor._device.createBuffer({
+      size: result.data.byteLength,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    });
+
+    // Create the bind group layout
+    const bindGroupLayout = Tensor._device.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: "read-only-storage" },
+        },
+        {
+          binding: 1,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: "read-only-storage" },
+        },
+        {
+          binding: 2,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: "storage" },
+        },
+      ],
+    });
+
+    const bindGroup = Tensor._device.createBindGroup({
+      layout: bindGroupLayout,
+
+      entries: [
+        { binding: 0, resource: { buffer: a.dataBuffer! } },
+        { binding: 1, resource: { buffer: b.dataBuffer! } },
+        { binding: 2, resource: { buffer: resultBuffer } },
+      ],
+    });
+
+    const pipeline = Tensor._device.createComputePipeline({
+      layout: Tensor._device.createPipelineLayout({
+        bindGroupLayouts: [bindGroupLayout],
+      }),
+      compute: {
+        module: shaderModule,
+        entryPoint: "main",
+      },
+    });
+
+    const commandEncoder = Tensor._device.createCommandEncoder();
+    const passEncoder = commandEncoder.beginComputePass();
+    passEncoder.setPipeline(pipeline);
+    passEncoder.setBindGroup(0, bindGroup);
+
+    // Dispatch the compute job
+    passEncoder.dispatchWorkgroups(
+      Math.ceil(result.data.length / workgroupSize)
+    );
+
+    // End the compute pass
+    passEncoder.end();
+
+    // Copy the result buffer to the readback buffer
+    commandEncoder.copyBufferToBuffer(
+      resultBuffer,
+      0,
+      readbackBuffer,
+      0,
+      result.data.byteLength
+    );
+
+    // Submit the command
+    Tensor._device.queue.submit([commandEncoder.finish()]);
+
+    await readbackBuffer.mapAsync(GPUMapMode.READ);
+    const resultData = new Float32Array(readbackBuffer.getMappedRange());
+    result.data.set(resultData);
+
+    readbackBuffer.unmap();
+
+    // Cleanup the buffers
+    a.dataBuffer?.destroy();
+    b.dataBuffer?.destroy();
+
+    resultBuffer.destroy();
+    readbackBuffer.destroy();
+
+    // copy the output data to the result tensor's data
+    // result.data.set(outputData);
+
+    // Now just clean up our input tensors
+    a.isGpu = false;
+    b.isGpu = false;
+
+    a.dataBuffer = undefined;
+    b.dataBuffer = undefined;
+
+    return result;
   }
 
   /**

@@ -100,8 +100,8 @@ export function assertArrayEquals(expected: ArrayType, actual: ArrayType) {
   }
 
   if (!arrEq(expected, actual)) {
-    console.log(expected);
-    console.log(actual);
+    // console.log(expected);
+    // console.log(actual);
     throw new Error("Arrays are not equal");
   }
 }

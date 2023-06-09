@@ -91,8 +91,8 @@ export function assertArrayEquals(expected, actual) {
         throw new Error("Arrays are of different lengths");
     }
     if (!arrEq(expected, actual)) {
-        console.log(expected);
-        console.log(actual);
+        // console.log(expected);
+        // console.log(actual);
         throw new Error("Arrays are not equal");
     }
 }
