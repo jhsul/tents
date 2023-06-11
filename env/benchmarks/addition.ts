@@ -1,7 +1,7 @@
 import { Tensor } from "../../bin/";
-import { Benchmark } from "../main";
+import { Benchmark } from ".";
 
-export const vecaddForloopCpu: Benchmark = async (n) => {
+export const vecaddCpu: Benchmark = async (n) => {
   const a = Tensor.rand(n);
   const b = Tensor.rand(n);
 
@@ -12,7 +12,7 @@ export const vecaddForloopCpu: Benchmark = async (n) => {
   return window.performance.now() - start;
 };
 
-export const vecaddWebGpu: Benchmark = async (n) => {
+export const vecaddGpu: Benchmark = async (n) => {
   const a = Tensor.rand(n);
   const b = Tensor.rand(n);
 

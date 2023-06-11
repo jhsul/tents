@@ -19,8 +19,7 @@ import { Tensor } from "tents";
 const a = Tensor.rand([1000, 1000]);
 const b = Tensor.rand([1000, 1000]);
 
-const cpu = Tensor.matmul(a, b);
-
+const cpu = await Tensor.matmul(a, b);
 const gpu = await Tensor.matmul(a.gpu(), b.gpu());
 
 if (Tensor.almostEq(cpu, gpu)) console.log("🎉");

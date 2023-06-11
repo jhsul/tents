@@ -2,17 +2,14 @@ import type { FunctionComponent } from "react";
 import { useState, useEffect, useCallback } from "react";
 import { ExportToCsv } from "export-to-csv";
 
+import { benchmarks } from "./benchmarks";
 import { tests } from "../bin/tests";
-
-import { helloTensor } from "./benchmarks/hello";
-import { vecaddForloopCpu, vecaddWebGpu } from "./benchmarks/addition";
 
 import "./styles.scss";
 import { mean, stddev } from "../bin/util";
-import type { Benchmark } from "./main";
 import { Tensor } from "../bin";
 
-const benchmarks: Benchmark[] = [vecaddForloopCpu, vecaddWebGpu];
+// const benchmarks: Benchmark[] = [vecaddCpu, vecaddGpu];
 
 interface CSVDatum {
   n: number;
@@ -31,7 +28,7 @@ const App: FunctionComponent = () => {
 
   // const [N, setN] = useState<number[]>([]);
 
-  const runScript = useCallback(async () => {
+  const runBenchmark = useCallback(async () => {
     console.log("Beginning Benchmark!");
 
     // await Tensor.setupDevice();
@@ -149,7 +146,7 @@ const App: FunctionComponent = () => {
           <div>Save data to CSV</div>
         </div>
 
-        <button onClick={runScript} disabled={isRunning}>
+        <button onClick={runBenchmark} disabled={isRunning}>
           Start Benchmark
         </button>
 
