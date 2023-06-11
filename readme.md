@@ -7,8 +7,6 @@ TenTS is a WebGPU-accelerated Tensor library for the browser written in TypeScri
 
 ### Usage
 
-🛑 This is not set up correctly, yet. Right now this will just copy the repo into your project directory.
-
 ```sh
 pnpm i tents
 ```
@@ -18,9 +16,6 @@ Example:
 ```typescript
 import { Tensor } from "tents";
 
-// Run this once to access the device
-await Tensor.setupDevice();
-
 const a = Tensor.rand([1000, 1000]);
 const b = Tensor.rand([1000, 1000]);
 
@@ -28,7 +23,7 @@ const cpu = Tensor.matmul(a, b);
 
 const gpu = await Tensor.matmul(a.gpu(), b.gpu());
 
-if (Tensor.eq(cpu, gpu)) console.log("🎉");
+if (Tensor.almostEq(cpu, gpu)) console.log("🎉");
 ```
 
 ### Local Setup
