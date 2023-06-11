@@ -34,7 +34,7 @@ const App: FunctionComponent = () => {
   const runScript = useCallback(async () => {
     console.log("Beginning Benchmark!");
 
-    await Tensor.setupDevice();
+    // await Tensor.setupDevice();
     setIsRunning(true);
     const csvExporter = new ExportToCsv({
       filename: `${benchmarks[benchIdx].name}-js`,

@@ -15,7 +15,7 @@ export const testAddition = async () => {
     }),
 
     test("1D vector gpu addition (small)", async () => {
-      await Tensor.setupDevice();
+      // await Tensor.setupDevice();
       const a = new Tensor([1, 2, 3]);
       const b = new Tensor([5, 6, 1]);
 
@@ -35,7 +35,7 @@ export const testAddition = async () => {
     }),
 
     test("1D vector gpu addition (large)", async () => {
-      await Tensor.setupDevice();
+      // await Tensor.setupDevice();
       const a = new Tensor(new Array(1000000).fill(1));
       const b = new Tensor(new Array(1000000).fill(2));
 

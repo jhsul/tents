@@ -46,7 +46,10 @@ export class Tensor {
   }
 
   static async setupDevice() {
-    if (Tensor._device) return;
+    if (Tensor._device) {
+      console.log("Device already setup!");
+      return;
+    }
 
     const adapter = await navigator.gpu?.requestAdapter();
     const device = await adapter?.requestDevice();
@@ -54,6 +57,7 @@ export class Tensor {
     if (!device) throw new Error("WebGPU unavailable!");
 
     Tensor._device = device;
+    console.log("Setup device!");
   }
 
   static zeros(shape: number | number[]): Tensor {
@@ -263,6 +267,9 @@ export class Tensor {
         
     @compute @workgroup_size(${workgroupSize})
     fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+      if (id.x >= ${a.data.length}) {
+          return;
+      }
       let i = id.x;
       result.data[i] = a.data[i] + b.data[i];
     }
@@ -424,20 +431,35 @@ export class Tensor {
     result.shape = new Int32Array([n, p]);
     result.data = new Float32Array(n * p);
 
-    const workgroupSize = 256;
+    const workgroupSize = [16, 16];
 
     const shaderCode = `
-    struct Tensor {
+   
+
+      struct TensorA {
+        data: array<f32, ${n * m}>,
+      }
+
+      struct TensorB {
+        data: array<f32, ${m * p}>,
+      }
+
+      struct TensorOut {
         data: array<f32, ${n * p}>,
-      };
+      }
 
-      @group(0) @binding(0) var<storage, read> A: Tensor;
-      @group(0) @binding(1) var<storage, read> B: Tensor;
+      @group(0) @binding(0) var<storage, read> A: TensorA;
+      @group(0) @binding(1) var<storage, read> B: TensorB;
 
-      @group(0) @binding(2) var<storage, read_write> C: Tensor;
+      @group(0) @binding(2) var<storage, read_write> C: TensorOut;
 
-      @compute @workgroup_size(${workgroupSize})
+      @compute @workgroup_size(${workgroupSize[0]}, ${workgroupSize[1]})
       fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+
+        if (id.x >= ${n} || id.y >= ${p}) {
+          return;
+        }
+
         let i = id.x;
         let j = id.y;
 
@@ -512,7 +534,8 @@ export class Tensor {
 
     // Dispatch the compute job
     passEncoder.dispatchWorkgroups(
-      Math.ceil(result.data.length / workgroupSize)
+      Math.ceil(n / workgroupSize[0]),
+      Math.ceil(p / workgroupSize[1])
     );
 
     // End the compute pass

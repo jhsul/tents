@@ -70,7 +70,7 @@ export const testMatmul = async () => {
     }),
 
     test("gpu basic matmul 1/3", async () => {
-      await Tensor.setupDevice();
+      // await Tensor.setupDevice();
       const a = new Tensor([
         [1, 2, 3],
         [4, 5, 6],
@@ -88,6 +88,23 @@ export const testMatmul = async () => {
         [58, 64],
         [139, 154],
       ]);
+
+      assertTrue(Tensor.eq(c, expected));
+    }),
+    test("gpu matmul 4x4 and 4x1", async () => {
+      // await Tensor.setupDevice();
+      const a = new Tensor([
+        [1, 2, 3, 4],
+        [5, 6, 7, 8],
+        [9, 10, 11, 12],
+        [13, 14, 15, 16],
+      ]);
+
+      const b = new Tensor([[1], [2], [3], [4]]);
+
+      const c = await Tensor._gpuMatmul(a.gpu(), b.gpu());
+
+      const expected = new Tensor([[30], [70], [110], [150]]);
 
       assertTrue(Tensor.eq(c, expected));
     }),
