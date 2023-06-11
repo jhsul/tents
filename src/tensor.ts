@@ -191,11 +191,10 @@ export class Tensor {
     return this;
   }
 
-  // Basic operations
+  // In-place CPU operations
+  // These may only be called on CPU tensors..
 
-  static eq(a: Tensor, b: Tensor): boolean {
-    return arrEq(a.shape, b.shape) && arrEq(a.data, b.data);
-  }
+  // TODO: CHANGE THESE...
 
   static neg(a: Tensor): Tensor {
     if (a.isGpu)
@@ -212,6 +211,19 @@ export class Tensor {
     }
 
     return t;
+  }
+
+  // Basic operations
+
+  static eq(a: Tensor, b: Tensor): boolean {
+    return arrEq(a.shape, b.shape) && arrEq(a.data, b.data);
+  }
+
+  static almostEq(a: Tensor, b: Tensor, eps: number = 1e-3): boolean {
+    return (
+      arrEq(a.shape, b.shape) &&
+      a.data.every((v, i) => Math.abs(v - b.data[i]) < eps)
+    );
   }
 
   static async plus(a: Tensor, b: Tensor): Promise<Tensor> {
@@ -580,11 +592,31 @@ export class Tensor {
   }
 
   /**
-   * Expects two tensors a, b with shapes [s, n, m], [s, m, p]
+   * Expects two tensors a, b with shapes:
+   * - [s, n, m], [s, m, p]
+   * - [1, n, m], [s, m, p]
+   * - [s, n, m], [1, m, p]
+   *
    * Performs a matrix multiplication on s pairs of matrices a[i,:,:], b[i,:,:]
+   * Broadcasts as necessary
+   *
+   * This method assumes the shapes are correct
+   * The checking should be done in the main matmul method
    */
   static _cpuBatchMatmul(a: Tensor, b: Tensor): Tensor {
-    const s = a.shape[0];
+    let broadA = false;
+    let broadB = false;
+
+    let s = a.shape[0];
+
+    if (a.shape[0] === 1) {
+      broadA = true;
+      s = b.shape[0];
+    }
+    if (b.shape[0] === 1) {
+      broadB = true;
+      s = a.shape[0];
+    }
 
     const c = new Tensor();
 
@@ -600,7 +632,8 @@ export class Tensor {
         for (let j = 0; j < p; j++) {
           let sum = 0;
           for (let k = 0; k < m; k++) {
-            sum += a.get([i, k]) * b.get([k, j]);
+            sum +=
+              a.get([broadA ? 0 : r, i, k]) * b.get([broadB ? 0 : r, k, j]);
           }
           c.set([r, i, j], sum);
         }
@@ -608,5 +641,190 @@ export class Tensor {
     }
 
     return c;
+  }
+
+  /**
+   * Expects two tensors a, b with shapes:
+   * - [s, n, m], [s, m, p]
+   * - [1, n, m], [s, m, p]
+   * - [s, n, m], [1, m, p]
+   *
+   * Performs a matrix multiplication on s pairs of matrices a[i,:,:], b[i,:,:]
+   * Broadcasts as necessary
+   *
+   * This method assumes the shapes are correct
+   * The checking should be done in the main matmul method
+   */
+  static async _gpuBatchMatmul(a: Tensor, b: Tensor): Promise<Tensor> {
+    const broadA = a.shape[0] === 1;
+    const broadB = b.shape[0] === 1;
+    const s = broadA ? b.shape[0] : a.shape[0];
+
+    const n = a.shape[1];
+    const m = a.shape[2];
+    const p = b.shape[2];
+
+    const result = new Tensor();
+    result.shape = new Int32Array([s, n, p]);
+    result.data = new Float32Array(s * n * p);
+
+    const workgroupSize = [8, 8, 4];
+
+    const shaderCode = `
+    struct TensorA {
+      data: array<f32, ${broadA ? n * m : s * n * m}>,
+    }
+
+    struct TensorB {
+      data: array<f32, ${broadB ? m * p : s * m * p}>,
+    }
+
+    struct TensorOut {
+      data: array<f32, ${s * n * p}>,
+    }
+
+    @group(0) @binding(0) var<storage, read> A: TensorA;
+    @group(0) @binding(1) var<storage, read> B: TensorB;
+    @group(0) @binding(2) var<storage, read_write> C: TensorOut;
+
+    @compute @workgroup_size(${workgroupSize[0]}, ${workgroupSize[1]}, ${
+      workgroupSize[2]
+    })
+      fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+    let s = id.z;
+    let i = id.x;
+    let j = id.y;
+
+    if (s >= ${s} || i >= ${n} || j >= ${p}) {
+      return;
+    }
+
+    var sum: f32 = 0.0;
+    for (var k = 0u; k < ${m}; k = k + 1u) {
+      sum = sum + A.data[
+        ${
+          broadA
+            ? "(i * " + m + " + k)"
+            : "(s * " + n + " * " + m + " + i * " + m + " + k)"
+        }] 
+        * B.data[
+        ${
+          broadB
+            ? "(k * " + p + " + j)"
+            : "(s * " + m + " * " + p + " + k * " + p + " + j)"
+        }];
+    }
+
+    C.data[s * ${n} * ${p} + i * ${p} + j] = sum;
+  }
+
+  `;
+
+    const shaderModule = Tensor._device.createShaderModule({
+      code: shaderCode,
+    });
+
+    const resultBuffer = Tensor._device.createBuffer({
+      size: result.data.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
+    });
+
+    const readbackBuffer = Tensor._device.createBuffer({
+      size: result.data.byteLength,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    });
+
+    // Create the bind group layout
+    const bindGroupLayout = Tensor._device.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: "read-only-storage" },
+        },
+        {
+          binding: 1,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: "read-only-storage" },
+        },
+        {
+          binding: 2,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: "storage" },
+        },
+      ],
+    });
+
+    const bindGroup = Tensor._device.createBindGroup({
+      layout: bindGroupLayout,
+
+      entries: [
+        { binding: 0, resource: { buffer: a.dataBuffer! } },
+        { binding: 1, resource: { buffer: b.dataBuffer! } },
+        { binding: 2, resource: { buffer: resultBuffer } },
+      ],
+    });
+
+    const pipeline = Tensor._device.createComputePipeline({
+      layout: Tensor._device.createPipelineLayout({
+        bindGroupLayouts: [bindGroupLayout],
+      }),
+      compute: {
+        module: shaderModule,
+        entryPoint: "main",
+      },
+    });
+
+    const commandEncoder = Tensor._device.createCommandEncoder();
+    const passEncoder = commandEncoder.beginComputePass();
+    passEncoder.setPipeline(pipeline);
+    passEncoder.setBindGroup(0, bindGroup);
+
+    // Dispatch the compute job
+    passEncoder.dispatchWorkgroups(
+      Math.ceil(n / workgroupSize[0]),
+      Math.ceil(p / workgroupSize[1]),
+      Math.ceil(s / workgroupSize[2])
+    );
+
+    // End the compute pass
+    passEncoder.end();
+
+    // Copy the result buffer to the readback buffer
+    commandEncoder.copyBufferToBuffer(
+      resultBuffer,
+      0,
+      readbackBuffer,
+      0,
+      result.data.byteLength
+    );
+
+    // Submit the command
+    Tensor._device.queue.submit([commandEncoder.finish()]);
+
+    await readbackBuffer.mapAsync(GPUMapMode.READ);
+    const resultData = new Float32Array(readbackBuffer.getMappedRange());
+    result.data.set(resultData);
+
+    readbackBuffer.unmap();
+
+    // Cleanup the buffers
+    a.dataBuffer?.destroy();
+    b.dataBuffer?.destroy();
+
+    resultBuffer.destroy();
+    readbackBuffer.destroy();
+
+    // copy the output data to the result tensor's data
+    // result.data.set(outputData);
+
+    // Now just clean up our input tensors
+    a.isGpu = false;
+    b.isGpu = false;
+
+    a.dataBuffer = undefined;
+    b.dataBuffer = undefined;
+
+    return result;
   }
 }
