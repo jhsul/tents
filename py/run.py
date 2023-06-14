@@ -8,7 +8,7 @@ from tqdm import tqdm
 import sys
 
 from benchmarks.addition import vecadd_forloop_cpu, vecadd_numpy_cpu, vecadd_torch_cpu, vecadd_torch_gpu
-from benchmarks.matmul import matmul_forloop_cpu, matmul_numpy_cpu, matmul_torch_cpu, matmul_torch_gpu, batch_matmul_4_torch_gpu, batch_matmul_64_torch_gpu, batch_matmul_256_torch_gpu
+from benchmarks.matmul import matmul_forloop_cpu, matmul_numpy_cpu, matmul_torch_cpu, matmul_torch_gpu, batch_matmul_4_torch_gpu, batch_matmul_64_torch_gpu, batch_matmul_256_torch_gpu, batch_matmul_4_torch_cpu, batch_matmul_64_torch_cpu, batch_matmul_256_torch_cpu
 
 
 def main(name: str, k: int = 1, c: int = 1, save: bool = False):
