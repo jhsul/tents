@@ -4,6 +4,7 @@ bin/
 
 py/__pycache__
 py/benchmarks/__pycache__
-# py/analysis.ipynb
+py/analysis.ipynb
+py/idk.ipynb
 
 tmp/
