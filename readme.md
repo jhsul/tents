@@ -2,7 +2,7 @@
 TenTS
 </h1>
 <p align="center">
-TenTS is a WebGPU-accelerated Tensor library for the browser written in TypeScript with a PyTorch-like API. It is slow as fuck, and you should probably never use it!
+TenTS is a WebGPU-accelerated Tensor library for the browser written in TypeScript with a PyTorch-like API. <b>Currently, matrix operations run between 10x and 100x slower than they would natively with PyTorch/CUDA. You probably should not use this (yet)!</b>
 </p>
 
 ### Usage
