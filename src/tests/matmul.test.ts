@@ -470,5 +470,19 @@ export const testMatmul = async () => {
 
       assertTrue(Tensor.almostEq(c, expected));
     }),
+
+    test("top-level matmul method", async () => {
+      const a = Tensor.rand([2, 3, 4]);
+      const b = Tensor.rand([2, 4, 5]);
+
+      const cpuExpected = Tensor._cpuBatchMatmul(a, b);
+      const cpu = await Tensor.matmul(a, b);
+
+      const gpuExpected = await Tensor._gpuBatchMatmul(a.gpu(), b.gpu());
+      const gpu = await Tensor.matmul(a.gpu(), b.gpu());
+
+      assertTrue(Tensor.almostEq(cpu, cpuExpected));
+      assertTrue(Tensor.almostEq(gpu, gpuExpected));
+    }),
   ]);
 };

@@ -35,8 +35,11 @@ export class Tensor {
 
       this.shape = new Int32Array(shape);
 
+      this.data = new Float32Array(shape.reduce((a, b) => a * b, 1));
+
       //@ts-expect-error
-      this.data = new Float32Array(arr.flat(shape.length));
+      this.data.set(arr.flat(shape.length));
+      // this.data = new Float32Array(arr.flat(shape.length));
     }
 
     // Initialize gradient if necessary
@@ -191,29 +194,96 @@ export class Tensor {
     return this;
   }
 
-  // In-place CPU operations
-  // These may only be called on CPU tensors..
+  // Random explode functions
 
-  // TODO: CHANGE THESE...
-
-  static neg(a: Tensor): Tensor {
-    if (a.isGpu)
-      throw new Error(
-        "Negation is a CPU operation. Run it before calling gpu()"
-      );
-
-    const t = new Tensor();
-    t.shape = new Int32Array(a.shape);
-    t.data = new Float32Array(a.data.length);
-
-    for (let i = 0; i < a.data.length; i++) {
-      t.data[i] = -a.data[i];
-    }
-
-    return t;
+  _cpuCheck() {
+    if (this.isGpu)
+      throw new Error("Attempting to perform CPU operation on GPU tensor");
   }
 
-  // Basic operations
+  static _checkShapes(a: Tensor, b: Tensor) {
+    if (!arrEq(a.shape, b.shape)) throw new Error(`Shape mismatch! ${a} ${b}`);
+  }
+
+  static _checkDevices(a: Tensor, b: Tensor) {
+    if (a.isGpu !== b.isGpu) throw new Error("Device mismatch");
+  }
+
+  // In-place CPU operations
+  // These are operations which are performed on the CPU
+  // The ymust not be called if the tensor is mapped to the GPU
+
+  neg(): Tensor {
+    this._cpuCheck();
+
+    for (let i = 0; i < this.data.length; i++) {
+      this.data[i] = -this.data[i];
+    }
+    return this;
+  }
+
+  scale(s: number): Tensor {
+    this._cpuCheck();
+
+    for (let i = 0; i < this.data.length; i++) {
+      this.data[i] *= s;
+    }
+    return this;
+  }
+
+  elmult(t: Tensor): Tensor {
+    this._cpuCheck();
+
+    Tensor._checkShapes(this, t);
+
+    for (let i = 0; i < this.data.length; i++) {
+      this.data[i] *= t.data[i];
+    }
+    return this;
+  }
+
+  exp(): Tensor {
+    this._cpuCheck();
+
+    for (let i = 0; i < this.data.length; i++) {
+      this.data[i] = Math.exp(this.data[i]);
+    }
+    return this;
+  }
+
+  T(): Tensor {
+    this._cpuCheck();
+
+    const newData = new Array(this.data.length);
+
+    // 2D matrix transpose
+    if (this.shape.length === 2) {
+      for (let r = 0; r < this.shape[0]; r++) {
+        for (let c = 0; c < this.shape[1]; c++) {
+          newData[c * this.shape[0] + r] = this.data[r * this.shape[1] + c];
+        }
+      }
+
+      this.data.set(newData);
+      this.shape.reverse();
+
+      // console.log("DURING");
+      // console.log(this.data);
+      // console.log(this.shape);
+      // console.log(this);
+
+      return this;
+    } else if (this.shape.length === 3) {
+      // batch transpose
+      return this;
+    } else
+      throw new Error(
+        "Only 2D matrices and 3D batch tensors may be transposed!"
+      );
+    // console.log(newData);
+  }
+
+  // Boolean Operations
 
   static eq(a: Tensor, b: Tensor): boolean {
     return arrEq(a.shape, b.shape) && arrEq(a.data, b.data);
@@ -226,19 +296,46 @@ export class Tensor {
     );
   }
 
+  // Top-Level Operations
+
   static async plus(a: Tensor, b: Tensor): Promise<Tensor> {
-    if (!arrEq(a.shape, b.shape)) throw new Error("Shape mismatch");
+    this._checkShapes(a, b);
+    this._checkDevices(a, b);
 
-    if (a.isGpu && b.isGpu) {
+    if (a.isGpu) {
       return await Tensor._gpuPlus(a, b);
-    }
-
-    if (!a.isGpu && !b.isGpu) {
+    } else {
       return Tensor._cpuPlus(a, b);
-    } else throw new Error("Tensor device mismatch");
+    }
   }
 
-  // static async minus(a: Tensor, b: Tensor): Promise
+  static async matmul(a: Tensor, b: Tensor): Promise<Tensor> {
+    this._checkDevices(a, b);
+
+    // Simple 2x2 matrix multiplication
+    if (a.shape.length === 2 && b.shape.length === 2) {
+      if (a.shape[1] !== b.shape[0])
+        throw new Error(`Invalid shapes for 2x2 matmul! ${a} ${b}`);
+
+      if (a.isGpu) {
+        return await Tensor._gpuMatmul(a, b);
+      } else {
+        return Tensor._cpuMatmul(a, b);
+      }
+    } else if (a.shape.length === 3 && b.shape.length === 3) {
+      if (
+        // If the inner matrices may be mismatched
+        a.shape[2] !== b.shape[1] ||
+        // If outer indices differ, then one of them must be 1 (for broadcasting)
+        (a.shape[0] !== b.shape[0] && a.shape[0] !== 1 && b.shape[0] !== 1)
+      )
+        throw new Error(`Invalid shapes for batch matmul! ${a} ${b}`);
+
+      if (a.isGpu) {
+        return await Tensor._gpuBatchMatmul(a, b);
+      } else return Tensor._cpuBatchMatmul(a, b);
+    } else throw new Error(`Invalid shapes for matmul! ${a} ${b}`);
+  }
 
   // CPU Operations
 
@@ -651,9 +748,6 @@ export class Tensor {
    *
    * Performs a matrix multiplication on s pairs of matrices a[i,:,:], b[i,:,:]
    * Broadcasts as necessary
-   *
-   * This method assumes the shapes are correct
-   * The checking should be done in the main matmul method
    */
   static async _gpuBatchMatmul(a: Tensor, b: Tensor): Promise<Tensor> {
     const broadA = a.shape[0] === 1;
