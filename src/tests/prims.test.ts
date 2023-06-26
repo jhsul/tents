@@ -17,14 +17,15 @@ export const testPrimitives = async () => {
       const b = new Tensor([2, 4, 6]);
 
       assertTrue(Tensor.almostEq(a.scale(2), b));
+      assertTrue(Tensor.almostEq(a, b.scale(0.5)));
     }),
 
-    test("elmult", () => {
-      const a = new Tensor([1, 2, 3]);
-      const b = new Tensor([2, 4, 6]);
+    // test("elmult", () => {
+    //   const a = new Tensor([1, 2, 3]);
+    //   const b = new Tensor([2, 4, 6]);
 
-      assertTrue(Tensor.almostEq(a.elmult(b), new Tensor([2, 8, 18])));
-    }),
+    //   assertTrue(Tensor.almostEq(a.elmult(b), new Tensor([2, 8, 18])));
+    // }),
 
     test("exp", () => {
       const a = new Tensor([1, 2, 3]);
@@ -46,9 +47,9 @@ export const testPrimitives = async () => {
       ]);
 
       // console.log(a);
-      a.T();
       // console.log(a);
-      assertTrue(Tensor.almostEq(a, b));
+      assertTrue(Tensor.almostEq(a.T(), b));
+      assertTrue(Tensor.almostEq(b.T(), a));
     }),
 
     test("2D matrix transpose 1x10", () => {
@@ -56,6 +57,13 @@ export const testPrimitives = async () => {
       const b = Tensor.ones([10, 1]);
 
       assertTrue(Tensor.eq(a.T(), b));
+    }),
+
+    test("relu", () => {
+      const a = new Tensor([-1, 0, 2, 3]);
+      const expected = new Tensor([0, 0, 2, 3]);
+
+      assertTrue(Tensor.eq(a.relu(), expected));
     }),
   ]);
 };

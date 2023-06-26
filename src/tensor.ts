@@ -1,17 +1,47 @@
 import { arrEq, findShape, gaussianSample, NestedArray } from "./util";
 
 export class Tensor {
+  static _device: GPUDevice;
   shape: Int32Array;
   data: Float32Array;
 
+  // GPU
   isGpu: boolean;
-  requiresGrad: boolean;
-
   dataBuffer?: GPUBuffer;
 
+  // Gradient
+  requiresGrad: boolean;
+  isLeaf: boolean = false;
   grad?: Tensor;
 
-  static _device: GPUDevice;
+  // For tensors built by differentiable operations
+  // It takes the propogated gradient, as well as the actual inputs
+  gradFn?: (grad: Tensor, inputs: Tensor[]) => Tensor[];
+  inputs?: Tensor[];
+
+  // For non-leaf tensors in case we want to retain the gradient
+  // Otherwise, only leaf gradients are stored for memory efficiency
+  // This is the default behavior in pytorch, which uses retain_grad() here
+  shouldRetainGrad: boolean = false;
+
+  retainGrad() {
+    this.shouldRetainGrad = true;
+  }
+
+  static async setupDevice() {
+    if (Tensor._device) {
+      console.log("Device already setup!");
+      return;
+    }
+
+    const adapter = await navigator.gpu?.requestAdapter();
+    const device = await adapter?.requestDevice();
+
+    if (!device) throw new Error("WebGPU unavailable!");
+
+    Tensor._device = device;
+    console.log("Setup device!");
+  }
 
   // Constructors
 
@@ -44,64 +74,59 @@ export class Tensor {
 
     // Initialize gradient if necessary
     if (requiresGrad) {
-      this.grad = Tensor.zeros(Array.from(this.shape));
+      this.isLeaf = true;
     }
   }
 
-  static async setupDevice() {
-    if (Tensor._device) {
-      console.log("Device already setup!");
-      return;
-    }
-
-    const adapter = await navigator.gpu?.requestAdapter();
-    const device = await adapter?.requestDevice();
-
-    if (!device) throw new Error("WebGPU unavailable!");
-
-    Tensor._device = device;
-    console.log("Setup device!");
-  }
-
-  static zeros(shape: number | number[]): Tensor {
+  static zeros(
+    shape: number | number[] | Int32Array,
+    requiresGrad: boolean = false
+  ): Tensor {
     if (typeof shape === "number") {
       shape = [shape];
-    } else if (!Array.isArray(shape)) {
-      throw new Error("Invalid shape");
     }
 
     const t = new Tensor();
 
     t.shape = new Int32Array(shape);
     // TypedArrays are initialized to 0 by default
+
+    //@ts-expect-errors
     t.data = new Float32Array(shape.reduce((a, b) => a * b, 1));
+    if (requiresGrad) {
+      t.isLeaf = true;
+    }
     return t;
   }
 
-  static ones(shape: number | number[]): Tensor {
+  static ones(
+    shape: number | number[] | Int32Array,
+    requiresGrad: boolean = false
+  ): Tensor {
     if (typeof shape === "number") {
       shape = [shape];
-    } else if (!Array.isArray(shape)) {
-      throw new Error("Invalid shape");
     }
 
     const t = new Tensor();
 
     t.shape = new Int32Array(shape);
+
+    //@ts-expect-error
     t.data = new Float32Array(shape.reduce((a, b) => a * b, 1)).fill(1.0);
+    if (requiresGrad) {
+      t.isLeaf = true;
+    }
     return t;
   }
 
-  static rand(shape: number | number[]): Tensor {
+  static rand(shape: number | number[] | Int32Array): Tensor {
     if (typeof shape === "number") {
       shape = [shape];
-    } else if (!Array.isArray(shape)) {
-      throw new Error("Invalid shape");
     }
-
     const t = new Tensor();
 
     t.shape = new Int32Array(shape);
+    //@ts-expect-error
     t.data = new Float32Array(shape.reduce((a, b) => a * b, 1)).map(() =>
       Math.random()
     );
@@ -109,22 +134,40 @@ export class Tensor {
     return t;
   }
 
-  static randn(shape: number | number[], mean: number = 0, stddev: number = 1) {
+  static randn(
+    shape: number | number[] | Int32Array,
+    mean: number = 0,
+    stddev: number = 1
+  ) {
     if (typeof shape === "number") {
       shape = [shape];
-    } else if (!Array.isArray(shape)) {
-      throw new Error("Invalid shape");
     }
 
     const t = new Tensor();
 
     t.shape = new Int32Array(shape);
+
+    //@ts-expect-error
     t.data = new Float32Array(shape.reduce((a, b) => a * b, 1)).map(() =>
       gaussianSample(mean, stddev)
     );
     return t;
   }
 
+  // Identity matrix
+  static eye(size: number): Tensor {
+    const t = new Tensor();
+
+    t.shape = new Int32Array([size, size]);
+
+    t.data = new Float32Array(size * size);
+
+    for (let i = 0; i < size; i++) {
+      t.data[i * size + i] = 1;
+    }
+
+    return t;
+  }
   get(idx: number | number[]) {
     if (typeof idx === "number") {
       if (this.shape.length > 1)
@@ -209,52 +252,129 @@ export class Tensor {
     if (a.isGpu !== b.isGpu) throw new Error("Device mismatch");
   }
 
-  // In-place CPU operations
+  // CPU-Only Operations
   // These are operations which are performed on the CPU
   // The ymust not be called if the tensor is mapped to the GPU
 
   neg(): Tensor {
-    this._cpuCheck();
-
-    for (let i = 0; i < this.data.length; i++) {
-      this.data[i] = -this.data[i];
-    }
-    return this;
+    return this.scale(-1);
   }
 
   scale(s: number): Tensor {
     this._cpuCheck();
 
+    const newShape = new Int32Array(this.shape);
+    const newData = new Float32Array(this.data.length);
+
     for (let i = 0; i < this.data.length; i++) {
-      this.data[i] *= s;
+      newData[i] = this.data[i] * s;
     }
-    return this;
+
+    const t = new Tensor();
+
+    t.shape = newShape;
+    t.data = newData;
+
+    if (this.requiresGrad) {
+      // t.isLeaf = false;
+      t.requiresGrad = true;
+      t.inputs = [this];
+
+      t.gradFn = (grad, inputs) => {
+        return [grad.scale(s)];
+      };
+    }
+
+    return t;
   }
 
-  elmult(t: Tensor): Tensor {
+  static elmult(a: Tensor, b: Tensor): Tensor {
+    a._cpuCheck();
+    b._cpuCheck();
+
+    Tensor._checkShapes(a, b);
+
+    const newShape = new Int32Array(a.shape);
+    const newData = new Float32Array(a.data.length);
+
+    for (let i = 0; i < a.data.length; i++) {
+      newData[i] = a.data[i] * b.data[i];
+    }
+
+    const t = new Tensor();
+    t.shape = newShape;
+    t.data = newData;
+
+    return t;
+  }
+
+  pow(s: number): Tensor {
     this._cpuCheck();
 
-    Tensor._checkShapes(this, t);
+    const newShape = new Int32Array(this.shape);
+    const newData = new Float32Array(this.data.length);
 
     for (let i = 0; i < this.data.length; i++) {
-      this.data[i] *= t.data[i];
+      newData[i] = Math.pow(this.data[i], s);
     }
-    return this;
+
+    const t = new Tensor();
+
+    t.shape = newShape;
+    t.data = newData;
+
+    if (this.requiresGrad) {
+      // t.isLeaf = false;
+      t.requiresGrad = true;
+      t.inputs = [this];
+
+      // The inputs here should only contain one tensor
+      t.gradFn = (grad, inputs) => {
+        return [Tensor.elmult(grad, inputs[0].pow(s - 1).scale(s))];
+      };
+    }
+    return t;
   }
 
   exp(): Tensor {
     this._cpuCheck();
 
+    const newShape = new Int32Array(this.shape);
+    const newData = new Float32Array(this.data.length);
+
     for (let i = 0; i < this.data.length; i++) {
-      this.data[i] = Math.exp(this.data[i]);
+      newData[i] = Math.exp(this.data[i]);
     }
-    return this;
+
+    const t = new Tensor();
+
+    t.shape = newShape;
+    t.data = newData;
+    return t;
+  }
+
+  relu(): Tensor {
+    this._cpuCheck();
+
+    const newShape = new Int32Array(this.shape);
+    const newData = new Float32Array(this.data.length);
+
+    for (let i = 0; i < this.data.length; i++) {
+      newData[i] = this.data[i] > 0 ? this.data[i] : 0;
+    }
+
+    const t = new Tensor();
+
+    t.shape = newShape;
+    t.data = newData;
+    return t;
   }
 
   T(): Tensor {
     this._cpuCheck();
 
-    const newData = new Array(this.data.length);
+    const newShape = new Int32Array(this.shape).reverse();
+    const newData = new Float32Array(this.data.length);
 
     // 2D matrix transpose
     if (this.shape.length === 2) {
@@ -264,15 +384,17 @@ export class Tensor {
         }
       }
 
-      this.data.set(newData);
-      this.shape.reverse();
+      const t = new Tensor();
+
+      t.shape = newShape;
+      t.data = newData;
+
+      return t;
 
       // console.log("DURING");
       // console.log(this.data);
       // console.log(this.shape);
       // console.log(this);
-
-      return this;
     } else if (this.shape.length === 3) {
       // batch transpose
       return this;
@@ -302,11 +424,24 @@ export class Tensor {
     this._checkShapes(a, b);
     this._checkDevices(a, b);
 
+    let t: Tensor;
+
     if (a.isGpu) {
-      return await Tensor._gpuPlus(a, b);
+      t = await Tensor._gpuPlus(a, b);
     } else {
-      return Tensor._cpuPlus(a, b);
+      t = Tensor._cpuPlus(a, b);
     }
+
+    if (a.requiresGrad || b.requiresGrad) {
+      t.requiresGrad = true;
+      // t.isLeaf = false;
+      t.inputs = [a, b];
+
+      t.gradFn = (grad, inputs) => {
+        return [grad, grad];
+      };
+    }
+    return t;
   }
 
   static async matmul(a: Tensor, b: Tensor): Promise<Tensor> {
@@ -921,4 +1056,53 @@ export class Tensor {
 
     return result;
   }
+
+  // Automatic Differentiation
+
+  async backward(grad?: Tensor) {
+    if (!this.requiresGrad)
+      throw new Error("Cannot call backward() on non-differentiable tensor!");
+
+    // if (!grad) grad = Tensor.ones(this.shape);
+
+    if (!grad) {
+      grad = Tensor.ones(this.shape);
+      // if (this.shape.length === 1) {
+      //   grad = Tensor.ones(this.shape);
+      // }
+      // else if(this.shape.length === 2) {
+      //   grad =
+      // }
+    }
+
+    // If the current tensor was the result of an operation
+    // then we need to backpropogate through that
+    if (this.gradFn) {
+      const nextGrads = this.gradFn(grad, this.inputs!);
+
+      // Does this count as parallelism?
+      await Promise.all(
+        this.inputs!.map(async (input, i) => {
+          input.backward(nextGrads[i]);
+        })
+      );
+    }
+
+    if (this.isLeaf || this.shouldRetainGrad) {
+      this.grad = grad;
+    }
+  }
+
+  // No need for this since we are being hella memory inefficient
+  // and just recomputing everything all the time anyway lol
+  // zeroGrad() {
+  //   if (!this.requiresGrad)
+  //     throw new Error("Cannot call zeroGrad() on non-differentiable tensor!");
+
+  //   for (let i = 0; i < this.grad!.data.length; i++) {
+  //     this.grad!.data[i] = 0;
+  //   }
+
+  //   return this;
+  // }
 }

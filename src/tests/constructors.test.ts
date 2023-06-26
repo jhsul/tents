@@ -1,5 +1,5 @@
 import { Tensor } from "..";
-import { assertArrayEquals, test } from "./testing";
+import { assertArrayEquals, assertTrue, test } from "./testing";
 
 export const testConstructors = async () => {
   await Promise.all([
@@ -31,6 +31,18 @@ export const testConstructors = async () => {
         Tensor.ones([2, 3, 4]).data,
         new Float32Array(24).fill(1)
       );
+    }),
+
+    test("eye constructor", () => {
+      const a = Tensor.eye(3);
+
+      const expected = new Tensor([
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+      ]);
+
+      assertTrue(Tensor.almostEq(a, expected));
     }),
   ]);
 };

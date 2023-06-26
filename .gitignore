@@ -7,3 +7,5 @@ py/benchmarks/__pycache__
 py/analysis.ipynb
 
 tmp/
+
+mnist/
