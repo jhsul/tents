@@ -85,7 +85,7 @@ const App: FunctionComponent = () => {
   return (
     <div className="app">
       <div className={`form ${isRunning ? "running" : ""}`}>
-        <b>TenTS Benchmark Tool</b>
+        <b>TenTS Development Tool</b>
         <br />
         <select
           value={benchIdx}
