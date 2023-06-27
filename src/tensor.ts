@@ -16,7 +16,7 @@ export class Tensor {
 
   // For tensors built by differentiable operations
   // It takes the propogated gradient, as well as the actual inputs
-  gradFn?: (grad: Tensor, inputs: Tensor[]) => Tensor[];
+  gradFn?: (grad: Tensor, inputs: Tensor[]) => Promise<Tensor[]>;
   inputs?: Tensor[];
 
   // For non-leaf tensors in case we want to retain the gradient
@@ -280,7 +280,7 @@ export class Tensor {
       t.requiresGrad = true;
       t.inputs = [this];
 
-      t.gradFn = (grad, inputs) => {
+      t.gradFn = async (grad, inputs) => {
         return [grad.scale(s)];
       };
     }
@@ -329,7 +329,7 @@ export class Tensor {
       t.inputs = [this];
 
       // The inputs here should only contain one tensor
-      t.gradFn = (grad, inputs) => {
+      t.gradFn = async (grad, inputs) => {
         return [Tensor.elmult(grad, inputs[0].pow(s - 1).scale(s))];
       };
     }
@@ -405,6 +405,41 @@ export class Tensor {
     // console.log(newData);
   }
 
+  /**
+   * Expects a 2D matrix of shape [m, n]
+   * Calculates softmax across dimension 1
+   */
+  softmax(): Tensor {
+    this._cpuCheck();
+
+    if (this.shape.length != 2) {
+      throw new Error("Softmax only supported for 2D matrices");
+    }
+
+    const [m, n] = this.shape;
+
+    const newShape = new Int32Array(this.shape);
+    const newData = new Float32Array(this.data.length);
+
+    // 2D matrix softmax
+    for (let r = 0; r < m; r++) {
+      // Calculate the sum for this row
+      let sum = 0;
+      for (let c = 0; c < n; c++) {
+        sum += Math.exp(this.data[r * n + c]);
+      }
+      for (let c = 0; c < n; c++) {
+        newData[r * n + c] = Math.exp(this.data[r * n + c]) / sum;
+      }
+    }
+
+    const t = new Tensor();
+    t.shape = newShape;
+    t.data = newData;
+
+    return t;
+  }
+
   // Boolean Operations
 
   static eq(a: Tensor, b: Tensor): boolean {
@@ -437,7 +472,7 @@ export class Tensor {
       // t.isLeaf = false;
       t.inputs = [a, b];
 
-      t.gradFn = (grad, inputs) => {
+      t.gradFn = async (grad, inputs) => {
         return [grad, grad];
       };
     }
@@ -447,15 +482,17 @@ export class Tensor {
   static async matmul(a: Tensor, b: Tensor): Promise<Tensor> {
     this._checkDevices(a, b);
 
+    let t: Tensor;
+
     // Simple 2x2 matrix multiplication
     if (a.shape.length === 2 && b.shape.length === 2) {
       if (a.shape[1] !== b.shape[0])
         throw new Error(`Invalid shapes for 2x2 matmul! ${a} ${b}`);
 
       if (a.isGpu) {
-        return await Tensor._gpuMatmul(a, b);
+        t = await Tensor._gpuMatmul(a, b);
       } else {
-        return Tensor._cpuMatmul(a, b);
+        t = Tensor._cpuMatmul(a, b);
       }
     } else if (a.shape.length === 3 && b.shape.length === 3) {
       if (
@@ -467,9 +504,21 @@ export class Tensor {
         throw new Error(`Invalid shapes for batch matmul! ${a} ${b}`);
 
       if (a.isGpu) {
-        return await Tensor._gpuBatchMatmul(a, b);
-      } else return Tensor._cpuBatchMatmul(a, b);
+        t = await Tensor._gpuBatchMatmul(a, b);
+      } else t = Tensor._cpuBatchMatmul(a, b);
     } else throw new Error(`Invalid shapes for matmul! ${a} ${b}`);
+
+    if (a.requiresGrad || b.requiresGrad) {
+      t.requiresGrad = true;
+      t.inputs = [a, b];
+      t.gradFn = async (grad, inputs) => {
+        return [
+          await Tensor.matmul(grad, inputs[1].T()),
+          await Tensor.matmul(inputs[0].T(), grad),
+        ];
+      };
+    }
+    return t;
   }
 
   // CPU Operations
@@ -1078,7 +1127,7 @@ export class Tensor {
     // If the current tensor was the result of an operation
     // then we need to backpropogate through that
     if (this.gradFn) {
-      const nextGrads = this.gradFn(grad, this.inputs!);
+      const nextGrads = await this.gradFn(grad, this.inputs!);
 
       // Does this count as parallelism?
       await Promise.all(

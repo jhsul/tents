@@ -82,5 +82,48 @@ export const testAutodiff = async () => {
       assertTrue(Tensor.almostEq(dQda, a.grad!));
       assertTrue(Tensor.almostEq(dQdb, b.grad!));
     }),
+
+    test("matmul 2x3 x 3x3", async () => {
+      const a = new Tensor(
+        [
+          [1, 2, 3],
+          [4, 5, 6],
+        ],
+        true
+      );
+      const b = new Tensor(
+        [
+          [1, 2, 3],
+          [4, 5, 6],
+          [7, 8, 9],
+        ],
+        true
+      );
+
+      const c = await Tensor.matmul(a, b);
+
+      await c.backward();
+
+      assertTrue(
+        Tensor.almostEq(
+          a.grad!,
+          new Tensor([
+            [6, 15, 24],
+            [6, 15, 24],
+          ])
+        )
+      );
+
+      assertTrue(
+        Tensor.almostEq(
+          b.grad!,
+          new Tensor([
+            [5, 5, 5],
+            [7, 7, 7],
+            [9, 9, 9],
+          ])
+        )
+      );
+    }),
   ]);
 };

@@ -65,5 +65,19 @@ export const testPrimitives = async () => {
 
       assertTrue(Tensor.eq(a.relu(), expected));
     }),
+
+    test("softmax", () => {
+      const a = new Tensor([
+        [1, 2, 1],
+        [100, 300, 0],
+      ]);
+
+      const expected = new Tensor([
+        [0.2119, 5.7612e-1, 2.1194e-1],
+        [0, 1.0, 0.0],
+      ]);
+
+      assertTrue(Tensor.almostEq(a.softmax(), expected));
+    }),
   ]);
 };
