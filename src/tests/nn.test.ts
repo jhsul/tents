@@ -39,11 +39,22 @@ export const testNns = async () => {
 
       const loss = Tensor.crossEntropy(logits, yOnehot);
 
-      console.log(loss);
-      //   loss.backward();
+      //   console.log(loss);
+      await loss.backward();
+      //   console.log(loss);
 
-      //   const expected = await Tensor.plus(logits.softmax(), yOnehot.scale(-1));
+      //   console.log(logits);
+      //   console.log(logits.grad);
+      //
+      //   console.log(yOnehot);
+      //   console.log(yOnehot.grad);
 
+      const expected = await Tensor.plus(logits.softmax(), yOnehot.scale(-1));
+
+      // Mean loss should be 0.0455
+      assertTrue(Math.abs(loss.mean() - 0.0455) < 0.01);
+
+      assertTrue(Tensor.almostEq(logits.grad!, expected));
       //   console.log(logits);
       //   console.log(logits.grad);
       //   console.log(expected);

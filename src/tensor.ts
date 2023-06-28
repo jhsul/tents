@@ -441,10 +441,14 @@ export class Tensor {
   }
 
   /**
-   * Calculates the cross entropy loss between two tensors
+   * Calculates the cross entropy loss for multi-class classification
    * Expects both tensors to be 2D matrices of shape [m, n]
+   * m is the number of samples
+   * n is the number of classes
    * y should be a one-hot encoded matrix
-   * logits should be a PRE-SOFTMAXXED matrix
+   * logits are PRE-SOFTMAX values
+   *
+   * The gradient uses the mean
    */
   static crossEntropy(logits: Tensor, y: Tensor): Tensor {
     Tensor._checkShapes(y, logits);
@@ -481,8 +485,12 @@ export class Tensor {
       t.requiresGrad = true;
       t.inputs = [logits];
       t.gradFn = async (grad, inputs) => {
-        console.log("CE backpropping");
-        return [await Tensor.plus(inputs[0], y.scale(-1))];
+        // console.log("CE backpropping");
+        // console.log(s);
+        // console.log(y);
+        const nextGrad = await Tensor.plus(s, y.scale(-1));
+        // console.log(nextGrad);
+        return [nextGrad];
       };
     }
 
@@ -1201,6 +1209,8 @@ export class Tensor {
     if (this.gradFn) {
       const nextGrads = await this.gradFn(grad, this.inputs!);
 
+      // console.log("Nextgrads:");
+      // console.log(nextGrads);
       // Does this count as parallelism?
       await Promise.all(
         this.inputs!.map(async (input, i) => {

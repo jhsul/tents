@@ -29,7 +29,7 @@ if (Tensor.almostEq(cpu, gpu)) console.log("🎉");
 
 ### Introduction
 
-TenTS introduces a `Tensor` class designed to mimic PyTorch's `tensor`. They can be constructed from nested arrays, or via constructors. Data is stored internally using a `Float32Array`. _Tensors are immutable_; although you can manually edit them if you choose to, all TenTS operations construct new tensor objects with new data buffers.
+TenTS introduces a `Tensor` class designed to mimic PyTorch's `tensor`. Tensors may be constructed directly from nested arrays or via convenient constructors. Data is stored internally using a `Float32Array`. _Tensors are immutable_, although you can edit them manually if you choose to; all TenTS operations construct new tensor objects with new data buffers.
 
 ### Constructors
 
@@ -126,6 +126,25 @@ const c = await Tensor.matmul(a, b);
 // ]
 ```
 
+### Utility Methods
+
+In addition to the above operations, TenTS includes a few utility methods. The main difference between these and the unary operations is that they either return a scalar, or do some sort of non-differentiable manipulation.
+
+```ts
+const a = new Tensor([1, 2, 3]);
+
+const sum = a.sum(); // 6
+const mean = a.mean(); // 2
+
+// Convert to a one-hot matrix for classification
+// The argument is the number of classes
+// [
+//   [0, 1, 0, 0],
+//   [0, 0, 1, 0],
+// ];
+const onehot = a.onehot(4);
+```
+
 ### GPU Acceleration
 
 Instead of PyTorch's general `.to(device)` syntax, TenTS uses a simpler `.gpu()` method. Despite GPU writes being asynchronous, this method is _synchronous_ and does not return a promise. The GPU device is only actually awaited during operations.
@@ -144,6 +163,16 @@ WebGPU acceleration is available for only the `plus()` and `matmul()` functions.
 ### Automatic Differentiation
 
 TenTS also includes an automatic differentiation system. Requiring gradients is as simple
+
+## Benchmarks and Performance
+
+Benchmarks below compare the TenTS CPU and GPU implementation of these algorithms with the equivalent operations using numpy and PyTorch (with a CUDA backend):
+
+<div align="center">
+<img src="assets/vecadd.png">
+<img src="assets/square-matmul.png">
+<img src="assets/batch-matmul.png">
+</div>
 
 ## Local Dev Environment
 

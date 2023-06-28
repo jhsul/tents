@@ -71,7 +71,7 @@ const App: FunctionComponent = () => {
 
   const runTests = async () => {
     const start = window.performance.now();
-    console.log("Running unit tests!");
+    console.log("Starting unit tests!");
 
     await Promise.all(tests.map((t) => t()));
 
