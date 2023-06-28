@@ -2,7 +2,7 @@
 TenTS
 </h1>
 <p align="center">
-TenTS is a WebGPU-accelerated Tensor library for the browser written in TypeScript with a PyTorch-like API. <b>Currently, matrix operations run between 10x and 100x slower than they would natively with PyTorch/CUDA. You should not use this (yet)!</b>
+TenTS is a WebGPU-accelerated Tensor library for the browser written in TypeScript with a PyTorch-like API. <b>Currently, matrix operations run between 10x and 100x slower than they would natively with PyTorch/CUDA. You should never use this!</b>
 </p>
 
 ## Usage
@@ -29,7 +29,7 @@ if (Tensor.almostEq(cpu, gpu)) console.log("🎉");
 
 ### Introduction
 
-TenTS introduces a `Tensor` class designed to mimic PyTorch's `tensor`. They can be constructed from nested arrays, or via constructors. Data is stored internally using a `Float32Array`. _Tensors are immutable_; although you can manually edit them if you choose to, all TenTS operations construct new tensor objects.
+TenTS introduces a `Tensor` class designed to mimic PyTorch's `tensor`. They can be constructed from nested arrays, or via constructors. Data is stored internally using a `Float32Array`. _Tensors are immutable_; although you can manually edit them if you choose to, all TenTS operations construct new tensor objects with new data buffers.
 
 ### Constructors
 
@@ -94,7 +94,37 @@ if (actualEq !== usefulEq) console.log("float moment");
 const badEq = Tensor.almostEq(a, b, 1);
 ```
 
-The bread and butter of TenTS are `plus()` and `matmul()`.
+The bread and butter of TenTS are `plus()` and `matmul()`. These are both _asynchronous_ methods.
+
+```ts
+const a = new Tensor([1, 2, 3]);
+const b = new tensor([4, 5, 6]);
+
+const c = await Tensor.plus(a, b);
+// [5, 7, 9]
+```
+
+The `matmul` function supports both standard 2D matrix multiplication, and 3D batch multiplication. In the latter case, broadcasting is supported.
+
+```ts
+// Basic 2D matrix multiplication
+
+const a = new Tensor([
+  [1, 2],
+  [3, 4],
+]);
+
+const b = new Tensor([
+  [5, 6],
+  [7, 8],
+]);
+
+const c = await Tensor.matmul(a, b);
+// [
+//   [19, 22],
+//   [43, 50],
+// ]
+```
 
 ### GPU Acceleration
 
@@ -110,6 +140,10 @@ const c = await Tensor.matmul(a.gpu(), b.gpu());
 ```
 
 WebGPU acceleration is available for only the `plus()` and `matmul()` functions.
+
+### Automatic Differentiation
+
+TenTS also includes an automatic differentiation system. Requiring gradients is as simple
 
 ## Local Dev Environment
 
