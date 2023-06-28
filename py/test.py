@@ -1,19 +1,34 @@
 import torch as th
+import torch.nn as nn
 
 
-a = th.tensor([[1., 2.], [3, 4]], requires_grad=True)
-b = th.tensor([[5., 6.], [7, 8]], requires_grad=True)
+softmax_nn = nn.Softmax(dim=1)
+loss_fn = nn.CrossEntropyLoss(reduction="mean")
 
 
-Q = th.matmul(a, b)
+# For a 4 class classification example
+ground_truth = th.tensor([1, 2, 3])
+ground_truth_onehot = th.tensor(
+    [[0, 1, 0, 0],
+     [0, 0, 1, 0],
+     [0, 0, 0, 1]])
 
-# Q.backward(th.eye(2))
-Q.sum().backward()
+# Pre-softmaxxed outputs of some NN
+logits = th.tensor([
+    [1., 5, 1, 1],
+    [2, 1, 5, 1],
+    [0, 0, 0, 10]
+], requires_grad=True)
 
-print("Gradients:")
-print(a.grad)
-print(b.grad)
+with th.no_grad():
+    y_pred = softmax_nn(logits)
 
-print("Q:")
 
-print(Q)
+loss = loss_fn(logits, ground_truth)
+loss.backward()
+
+print(loss)
+print(logits.grad*3)
+# print(y_pred.grad)
+# print(softmaxxed_y_pred)
+print(y_pred - ground_truth_onehot)

@@ -440,6 +440,78 @@ export class Tensor {
     return t;
   }
 
+  /**
+   * Calculates the cross entropy loss between two tensors
+   * Expects both tensors to be 2D matrices of shape [m, n]
+   * y should be a one-hot encoded matrix
+   * logits should be a PRE-SOFTMAXXED matrix
+   */
+  static crossEntropy(logits: Tensor, y: Tensor): Tensor {
+    Tensor._checkShapes(y, logits);
+
+    if (y.shape.length !== 2)
+      throw new Error("Cross entropy only supported for 2D matrices");
+
+    const [m, n] = y.shape;
+
+    // The softmaxxed outputs
+    // We do this here because we can take advantage of math trickery
+    // Jacobian of softmax is hard
+    // Jacobian of CE loss of softmax is ez
+    const s = logits.softmax();
+
+    const newShape = new Int32Array([m, 1]);
+    const newData = new Float32Array(m);
+
+    const t = new Tensor();
+    t.shape = newShape;
+    t.data = newData;
+
+    for (let r = 0; r < m; r++) {
+      let sum = 0;
+      for (let c = 0; c < n; c++) {
+        sum += y.get([r, c]) * Math.log(s.get([r, c]));
+      }
+      t.set([r, 0], -sum);
+    }
+
+    // Y should NEVER require gradient
+    // It's the ground truth!
+    if (logits.requiresGrad) {
+      t.requiresGrad = true;
+      t.inputs = [logits];
+      t.gradFn = async (grad, inputs) => {
+        console.log("CE backpropping");
+        return [await Tensor.plus(inputs[0], y.scale(-1))];
+      };
+    }
+
+    return t;
+  }
+
+  // Random utility
+  sum(): number {
+    return this.data.reduce((a, b) => a + b, 0);
+  }
+  mean(): number {
+    return this.sum() / this.data.length;
+  }
+
+  onehot(numClasses: number): Tensor {
+    if (this.shape.length !== 1) {
+      throw new Error("Only 1D tensors can be one-hot encoded");
+    }
+
+    const t = Tensor.zeros([this.shape[0], numClasses]);
+
+    for (let i = 0; i < this.data.length; i++) {
+      const cls = Math.round(this.data[i]);
+      t.set([i, cls], 1);
+    }
+
+    return t;
+  }
+
   // Boolean Operations
 
   static eq(a: Tensor, b: Tensor): boolean {

@@ -9,4 +9,5 @@ declare global {
 await Tensor.setupDevice();
 
 export { Tensor } from "./tensor";
+export { Module, Linear } from "./nn";
 export { arrEq, mean, stddev } from "./util";

@@ -6,6 +6,7 @@ import { testMatmul } from "./matmul.test";
 import { testBasics } from "./basics.test";
 import { testPrimitives } from "./prims.test";
 import { testAutodiff } from "./autodiff.test";
+import { testNns } from "./nn.test";
 
 // All tests are asynchronous by default
 type Test = () => Promise<void>;
@@ -19,4 +20,5 @@ export const tests: Test[] = [
   testBasics,
   testPrimitives,
   testAutodiff,
+  testNns,
 ];
