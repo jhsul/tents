@@ -8,6 +8,7 @@ import { tests } from "../bin/tests";
 import "./styles.scss";
 import { mean, stddev } from "../bin/util";
 import { Tensor } from "../bin";
+import { trainNN } from "./train";
 
 // const benchmarks: Benchmark[] = [vecaddCpu, vecaddGpu];
 
@@ -155,6 +156,10 @@ const App: FunctionComponent = () => {
         <button onClick={runTests} disabled={isRunning}>
           Run Unit Tests
         </button>
+
+        <br />
+
+        <button onClick={trainNN}>Train Neural Net</button>
       </div>
     </div>
   );

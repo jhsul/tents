@@ -49,7 +49,9 @@ export const testNns = async () => {
       //   console.log(yOnehot);
       //   console.log(yOnehot.grad);
 
-      const expected = await Tensor.plus(logits.softmax(), yOnehot.scale(-1));
+      const expected = (
+        await Tensor.plus(logits.softmax(), yOnehot.scale(-1))
+      ).scale(1 / 3);
 
       // Mean loss should be 0.0455
       assertTrue(Math.abs(loss.mean() - 0.0455) < 0.01);

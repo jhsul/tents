@@ -479,18 +479,19 @@ export class Tensor {
       t.set([r, 0], -sum);
     }
 
-    // Y should NEVER require gradient
+    // y should NEVER require gradient
     // It's the ground truth!
     if (logits.requiresGrad) {
       t.requiresGrad = true;
       t.inputs = [logits];
       t.gradFn = async (grad, inputs) => {
-        // console.log("CE backpropping");
-        // console.log(s);
-        // console.log(y);
         const nextGrad = await Tensor.plus(s, y.scale(-1));
-        // console.log(nextGrad);
-        return [nextGrad];
+
+        // This should be scaled by 1/m because we want
+        // the mean over all samples
+        // If we ignore this, this would be equivalent to sum reduction
+        // But pytorch uses mean reduction by default
+        return [nextGrad.scale(1 / m)];
       };
     }
 

@@ -1,13 +1,13 @@
 {
   "name": "tents",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "",
   "main": "bin/index.js",
   "scripts": {
     "build": "tsc"
   },
   "files": [
-    "bin/*"
+    "bin/*.(js|ts)"
   ],
   "keywords": [],
   "author": "Jack Sullivan",
