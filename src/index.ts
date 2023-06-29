@@ -6,7 +6,9 @@ declare global {
   type VideoFrame = any;
 }
 
-await Tensor.setupDevice();
+// Removing this again lol wtf esbuild
+// just for tehe demo...
+// await Tensor.setupDevice();
 
 export { Tensor } from "./tensor";
 export { Module, Linear } from "./nn";
