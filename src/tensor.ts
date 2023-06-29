@@ -350,6 +350,16 @@ export class Tensor {
 
     t.shape = newShape;
     t.data = newData;
+
+    if (this.requiresGrad) {
+      t.requiresGrad = true;
+      t.inputs = [this];
+
+      // The inputs here should only contain one tensor
+      t.gradFn = async (grad, inputs) => {
+        return [Tensor.elmult(grad, inputs[0].exp())];
+      };
+    }
     return t;
   }
 
@@ -367,6 +377,7 @@ export class Tensor {
 
     t.shape = newShape;
     t.data = newData;
+
     return t;
   }
 
