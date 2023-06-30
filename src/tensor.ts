@@ -94,6 +94,7 @@ export class Tensor {
     //@ts-expect-errors
     t.data = new Float32Array(shape.reduce((a, b) => a * b, 1));
     if (requiresGrad) {
+      t.requiresGrad = true;
       t.isLeaf = true;
     }
     return t;
@@ -114,12 +115,16 @@ export class Tensor {
     //@ts-expect-error
     t.data = new Float32Array(shape.reduce((a, b) => a * b, 1)).fill(1.0);
     if (requiresGrad) {
+      t.requiresGrad = true;
       t.isLeaf = true;
     }
     return t;
   }
 
-  static rand(shape: number | number[] | Int32Array): Tensor {
+  static rand(
+    shape: number | number[] | Int32Array,
+    requiresGrad = false
+  ): Tensor {
     if (typeof shape === "number") {
       shape = [shape];
     }
@@ -130,6 +135,11 @@ export class Tensor {
     t.data = new Float32Array(shape.reduce((a, b) => a * b, 1)).map(() =>
       Math.random()
     );
+
+    if (requiresGrad) {
+      t.requiresGrad = true;
+      t.isLeaf = true;
+    }
 
     return t;
   }
@@ -378,6 +388,17 @@ export class Tensor {
     t.shape = newShape;
     t.data = newData;
 
+    if (this.requiresGrad) {
+      t.requiresGrad = true;
+      t.inputs = [this];
+      t.gradFn = async (grad, inputs) => {
+        const newGrad = new Tensor();
+        newGrad.shape = new Int32Array(grad.shape);
+        newGrad.data = grad.data.map((v, i) => (inputs[0].data[i] > 0 ? v : 0));
+        return [newGrad];
+      };
+    }
+
     return t;
   }
 
@@ -463,6 +484,7 @@ export class Tensor {
    */
   static crossEntropy(logits: Tensor, y: Tensor): Tensor {
     Tensor._checkShapes(y, logits);
+    const eps = 1e-10;
 
     if (y.shape.length !== 2)
       throw new Error("Cross entropy only supported for 2D matrices");
@@ -485,7 +507,7 @@ export class Tensor {
     for (let r = 0; r < m; r++) {
       let sum = 0;
       for (let c = 0; c < n; c++) {
-        sum += y.get([r, c]) * Math.log(s.get([r, c]));
+        sum += y.get([r, c]) * Math.log(s.get([r, c]) || eps);
       }
       t.set([r, 0], -sum);
     }
@@ -547,7 +569,7 @@ export class Tensor {
 
   // Top-Level Operations
 
-  static async plus(a: Tensor, b: Tensor): Promise<Tensor> {
+  static async plus(a: Tensor, b: Tensor, noGrad = false): Promise<Tensor> {
     this._checkShapes(a, b);
     this._checkDevices(a, b);
 
@@ -559,7 +581,7 @@ export class Tensor {
       t = Tensor._cpuPlus(a, b);
     }
 
-    if (a.requiresGrad || b.requiresGrad) {
+    if ((a.requiresGrad || b.requiresGrad) && !noGrad) {
       t.requiresGrad = true;
       // t.isLeaf = false;
       t.inputs = [a, b];
@@ -571,7 +593,7 @@ export class Tensor {
     return t;
   }
 
-  static async matmul(a: Tensor, b: Tensor): Promise<Tensor> {
+  static async matmul(a: Tensor, b: Tensor, noGrad = false): Promise<Tensor> {
     this._checkDevices(a, b);
 
     let t: Tensor;
@@ -585,6 +607,18 @@ export class Tensor {
         t = await Tensor._gpuMatmul(a, b);
       } else {
         t = Tensor._cpuMatmul(a, b);
+      }
+
+      // ONLY DO GRADIENTS FOR 2D MATRICES
+      if ((a.requiresGrad || b.requiresGrad) && !noGrad) {
+        t.requiresGrad = true;
+        t.inputs = [a, b];
+        t.gradFn = async (grad, inputs) => {
+          return [
+            await Tensor.matmul(grad, inputs[1].T(), true),
+            await Tensor.matmul(inputs[0].T(), grad, true),
+          ];
+        };
       }
     } else if (a.shape.length === 3 && b.shape.length === 3) {
       if (
@@ -600,16 +634,6 @@ export class Tensor {
       } else t = Tensor._cpuBatchMatmul(a, b);
     } else throw new Error(`Invalid shapes for matmul! ${a} ${b}`);
 
-    if (a.requiresGrad || b.requiresGrad) {
-      t.requiresGrad = true;
-      t.inputs = [a, b];
-      t.gradFn = async (grad, inputs) => {
-        return [
-          await Tensor.matmul(grad, inputs[1].T()),
-          await Tensor.matmul(inputs[0].T(), grad),
-        ];
-      };
-    }
     return t;
   }
 

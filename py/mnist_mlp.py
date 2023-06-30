@@ -57,8 +57,8 @@ def calculate_accuracy(dataloader):
 class MLP(nn.Module):
     def __init__(self):
         super(MLP, self).__init__()
-        self.fc1 = nn.Linear(784, 128)
-        self.fc2 = nn.Linear(128, 10)
+        self.fc1 = nn.Linear(784, 128, bias=False)
+        self.fc2 = nn.Linear(128, 10, bias=False)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))

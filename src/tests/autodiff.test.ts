@@ -125,5 +125,14 @@ export const testAutodiff = async () => {
         )
       );
     }),
+
+    test("relu gradient", async () => {
+      const a = new Tensor([-1, 2, 3], true);
+      const b = a.relu();
+
+      await b.backward();
+
+      assertTrue(Tensor.almostEq(a.grad!, new Tensor([0, 1, 1])));
+    }),
   ]);
 };
